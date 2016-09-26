@@ -1,5 +1,6 @@
 package me.nettee.pancake.core;
 
+import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
 import net.sf.jsqlparser.JSQLParserException;
@@ -14,14 +15,18 @@ public class Engine {
 		PropertyConfigurator.configure(filepath);
 	}
 	
+	private static Logger logger = Logger.getLogger(Engine.class);
+	
 	public void execute(String sql) {
 		System.out.println("executing statement \"" + sql + "\"");
 		
 		try {
 			Statement statement = CCJSqlParserUtil.parse(sql);
-			ExecuteVisitor visitor = new ExecuteVisitor();
-			// visitor pattern
-			statement.accept(visitor);
+			ExecuteVisitor executor = new ExecuteVisitor();
+			statement.accept(executor);
+			executor.execute();
+			
+			
 		} catch (JSQLParserException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

@@ -8,7 +8,7 @@ public class EngineTest {
 	
 	@Test
 	public void testExecute() {
-		String sql = "select * from user";
+		String sql = "select * from user, address";
 		Engine engine = new Engine();
 		engine.execute(sql);
 	}
