@@ -1,14 +1,60 @@
 package me.nettee.pancake.core.storage;
 
+import java.util.ArrayList;
+import java.util.NoSuchElementException;
+
 public abstract class PageContainer {
+	
+	protected ArrayList<Page> pages = new ArrayList<Page>();
 
-	abstract public Page getFirstPage();
+	public PageContainer() {
+	}
 
-	abstract public Page getLastPage();
+	public Page getFirstPage() {
+		if (pages.isEmpty()) {
+			throw new NoSuchElementException();
+		} else {
+			return pages.get(0);
+		}
+	}
+	
+	public Page getLastPage() {
+		if (pages.isEmpty()) {
+			throw new NoSuchElementException();
+		} else {
+			return pages.get(pages.size() - 1);
+		}
+	}
 
-	abstract public Page getPrevPage(int currentPageNum);
-
-	abstract public Page getNextPage(int currentPageNum);
+	public Page getPrevPage(int currentPageNum) {
+		int N = pages.size();
+		for (int i = 0; i < N; i++) {
+			Page page = pages.get(i);
+			if (page.getPageNum() == currentPageNum) {
+				if (i == 0) {
+					throw new NoSuchElementException();
+				} else {
+					return pages.get(i - 1);
+				}
+			}
+		}
+		throw new NoSuchElementException();
+	}
+	
+	public Page getNextPage(int currentPageNum) {
+		int N = pages.size();
+		for (int i = 0; i < N; i++) {
+			Page page = pages.get(i);
+			if (page.getPageNum() == currentPageNum) {
+				if (i == N - 1) {
+					throw new NoSuchElementException();
+				} else {
+					return pages.get(i + 1);
+				}
+			}
+		}
+		throw new NoSuchElementException();
+	}
 
 	public Page getPrevPage(Page current) {
 		return getPrevPage(current.getPageNum());
