@@ -4,21 +4,32 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
-import java.util.TreeMap;
 
+import org.apache.log4j.Logger;
+
+/**
+ * Currently no buffer
+ * @author william
+ *
+ */
 public class PagedFile {
 	
-	public static final int PAGE_SIZE = 4092;
+	private static Logger logger = Logger.getLogger(PagedFile.class);
+	
+//	private static int pageNumCount = 31;
 	
 	private RandomAccessFile file;
-	private TreeMap<Integer, Page>buffer;
+//	private TreeMap<Integer, Page>buffer;
 	
 	private PagedFile(File file) throws FileNotFoundException {
+		if (file == null) {
+			throw new NullPointerException();
+		}
 		this.file = new RandomAccessFile(file, "rw");
-		this.buffer = new TreeMap<Integer, Page>();
+		if (file.length() % 4096 != 0) {
+			logger.warn("file length is not dividable by 4096");
+		}
+//		this.buffer = new TreeMap<Integer, Page>();
 	}
 	
 	public static PagedFile open(File file) throws FileNotFoundException {
@@ -30,22 +41,35 @@ public class PagedFile {
 	}
 	
 	public Page allocatePage() throws IOException {
-		Page page = new Page(31);
 		
-		byte[] b = new byte[4096];
-		Arrays.fill(b, (byte) 0xee);
-		byte[] i = ByteBuffer.allocate(4)
-				.order(ByteOrder.BIG_ENDIAN)
-				.putInt(page.num)
-				.array();
-		System.arraycopy(i, 0, b, 0, 4);
-		file.write(b, 0, 4096);
+		int N = getPageNum();
 		
-		if (buffer.containsKey(page.num)) {
-			throw new IllegalStateException();
+		Page page = Page.newInstanceByNum(N);
+		
+		file.seek(N * Page.PAGE_SIZE);
+		file.writeInt(page.num);
+		file.write(page.data);
+		if (file.getFilePointer() != (N + 1) * Page.PAGE_SIZE) {
+			throw new AssertionError();
 		}
-		buffer.put(page.num, page);
+		
 		return page;
+	}
+	
+	public int getPageNum() throws IOException {
+		return (int) (file.length() / 4096);
+	}
+	
+	public Page getPage(int N) throws IOException {
+		file.seek(N * Page.PAGE_SIZE);
+		int pageNum = file.readInt();
+		Page page = Page.newInstanceByNum(pageNum);
+		file.read(page.data);
+		return page;
+	}
+	
+	public Page getFirstPage() throws IOException {
+		return getPage(0);
 	}
 
 }

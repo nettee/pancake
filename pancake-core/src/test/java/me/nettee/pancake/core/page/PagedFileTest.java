@@ -9,23 +9,27 @@ import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class PagedFileTest {
 	
 	private PagedFile pagedFile;
-	private static File file = new File("/tmp/c.db");
+	private File file;
 	
 	@BeforeClass
 	public static void setUpBeforeClass() throws IOException {
+		
+	}
+	
+	@Before
+	public void setUp() throws IOException {
+		file = new File("/tmp/c.db");
 		if (file.exists()) {
 			file.delete();
 		}
 		file.createNewFile();
-	}
-	
-	@Before
-	public void setUp() {
+		
 		try {
 			pagedFile = PagedFile.open(file);
 		} catch (FileNotFoundException e) {
@@ -39,9 +43,16 @@ public class PagedFileTest {
 	}
 	
 	@Test
-	public void test1() throws IOException {
+	@Ignore
+	public void testAllocatePage() throws IOException {
 		pagedFile.allocatePage();
-		
+	}
+	
+	@Test
+	public void testAllocatePageTwice() throws IOException {
+		pagedFile.allocatePage();
+		pagedFile.allocatePage();
+		pagedFile.allocatePage();
 	}
 
 }

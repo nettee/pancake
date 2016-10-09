@@ -5,12 +5,22 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 
+import org.apache.log4j.PropertyConfigurator;
+
+import me.nettee.pancake.core.Engine;
+
 /**
  * singleton
  * @author william
  *
  */
 public class PagedFileManager {
+	
+	static {
+		// If maven environment is set, it will get file under src/main/resources dir
+		String filepath = Engine.class.getResource("/log4j.properties").getPath();
+		PropertyConfigurator.configure(filepath);
+	}
 	
 	private static PagedFileManager instance;
 	

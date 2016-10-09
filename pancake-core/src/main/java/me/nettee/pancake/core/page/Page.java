@@ -1,17 +1,24 @@
 package me.nettee.pancake.core.page;
 
+import java.util.Arrays;
+
 public class Page {
-	
-	Page(int num) {
-		this.num = num;
-		pinned = true;
-		dirty = true;
-		data = new byte[PagedFile.PAGE_SIZE];
-	}
-	
+
+	public static final int PAGE_SIZE = 4096;
+	public static final int DATA_SIZE = 4092;
+
 	int num;
 	boolean pinned;
 	boolean dirty;
 	byte[] data;
 
+	static Page newInstanceByNum(int num) {
+		Page page = new Page();
+		page.num = num;
+		page.pinned = true;
+		page.dirty = true;
+		page.data = new byte[DATA_SIZE];
+		Arrays.fill(page.data, (byte) 0xee);
+		return page;
+	}
 }

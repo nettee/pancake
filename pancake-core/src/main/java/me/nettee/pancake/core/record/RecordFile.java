@@ -17,7 +17,7 @@ public class RecordFile {
 	
 	private boolean hasRecordMagic(byte[] data) {
 		byte[] magic = "RECFILE".getBytes(StandardCharsets.US_ASCII);
-		return Arrays.copyOf(data, 7).equals(magic);
+		return Arrays.copyOf(data, magic.length).equals(magic);
 	}
 	
 	public void insertRecord(byte[] record) {
