@@ -21,4 +21,12 @@ public class Page {
 		Arrays.fill(page.data, (byte) 0xee);
 		return page;
 	}
+
+	public int getNum() {
+		return num;
+	}
+
+	public byte[] getData() {
+		return data;
+	}
 }
