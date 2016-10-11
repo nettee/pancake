@@ -87,12 +87,18 @@ public class RecordFile {
 	}
 
 	public void close() throws IOException {
+		file.forceAllPages();
 		file.close();
 	}
 
-	public RID insertRecord(byte[] record) {
+	public RID insertRecord(byte[] record) throws IOException {
+		// FIXME workaround
 		int pageNum = 1;
 		int slotNum = 0;
+		file.allocatePage();
+		Page page = file.getPage(pageNum);	
+		byte[] data = page.getData();
+		System.arraycopy(record, 0, data, slotNum * recordSize, recordSize);
 		return new RID(pageNum, slotNum);
 	}
 

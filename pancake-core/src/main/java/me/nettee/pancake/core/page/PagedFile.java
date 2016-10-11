@@ -18,8 +18,6 @@ public class PagedFile {
 
 	private static Logger logger = Logger.getLogger(PagedFile.class);
 
-	// private static int pageNumCount = 31;
-
 	private RandomAccessFile file;
 	private TreeMap<Integer, Page> buffer;
 
@@ -29,8 +27,8 @@ public class PagedFile {
 		} catch (FileNotFoundException e) {
 			throw new PagedFileException(e);
 		}
-		if (file.length() % 4096 != 0) {
-			logger.warn("file length is not dividable by 4096");
+		if (file.length() % Page.PAGE_SIZE != 0) {
+			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
 		}
 		this.buffer = new TreeMap<Integer, Page>();
 	}
@@ -72,7 +70,8 @@ public class PagedFile {
 		}
 	}
 
-	private void writePageToSlot(int slot, Page page) throws IOException {
+	private void writePage(Page page) throws IOException {
+		int slot = page.num;
 		file.seek(slot * Page.PAGE_SIZE);
 		file.writeInt(page.num);
 		file.write(page.data);
@@ -87,7 +86,7 @@ public class PagedFile {
 
 		Page page = Page.newInstanceByNum(N);
 
-		writePageToSlot(N, page);
+		writePage(page);
 
 		buffer.put(page.num, page);
 		logger.debug("buffer size: " + buffer.size());
@@ -100,6 +99,10 @@ public class PagedFile {
 	}
 
 	public Page getPage(int N) throws IOException {
+		
+		if (N >= getNumOfPages()) {
+			throw new PagedFileException("page index out of bound");
+		}
 
 		if (!buffer.containsKey(N)) {
 			file.seek(N * Page.PAGE_SIZE);
@@ -117,18 +120,18 @@ public class PagedFile {
 	}
 
 	public void forcePage(int pageNum) throws IOException {
-		Logger logger = Logger.getLogger(this.getClass());
-		logger.debug("force: pageNum = " + pageNum);
-		// logger.debug("pageNum: " + pageNum);
-		// logger.debug("buffer size: " + buffer.size());
-		// for (int key : buffer.keySet()) {
-		// logger.debug("key: " + key);
-		// }
 		Page page = buffer.get(pageNum);
 		if (page == null) {
 			throw new AssertionError();
 		}
-		writePageToSlot(page.num, page);
+		writePage(page);
+	}
+	
+	public void forceAllPages() throws IOException {
+		int N = getNumOfPages();
+		for (int i = 0; i < N; i++) {
+			forcePage(i);
+		}
 	}
 
 }

@@ -37,6 +37,7 @@ public class RecordFileTest {
 		RecordFile recordFile = RecordFile.create(file, 8);
 		byte[] str = "abcdefgh".getBytes();
 		recordFile.insertRecord(str);
+		recordFile.close();
 	}
 
 }
