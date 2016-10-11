@@ -55,11 +55,11 @@ public class PagedFile {
 		pagedFile.loadPages();
 		return pagedFile;
 	}
-	
+
 	private void initPages() {
 		// TODO
 	}
-	
+
 	private void loadPages() {
 		// TODO
 	}
@@ -117,7 +117,8 @@ public class PagedFile {
 	}
 
 	public void forcePage(int pageNum) throws IOException {
-		// Logger logger = Logger.getLogger(this.getClass());
+		Logger logger = Logger.getLogger(this.getClass());
+		logger.debug("force: pageNum = " + pageNum);
 		// logger.debug("pageNum: " + pageNum);
 		// logger.debug("buffer size: " + buffer.size());
 		// for (int key : buffer.keySet()) {

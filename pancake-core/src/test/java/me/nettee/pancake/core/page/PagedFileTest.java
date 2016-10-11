@@ -6,13 +6,11 @@ import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class PagedFileTest {
 	
 	private File file1;
-	private File file2;
 	
 	@BeforeClass
 	public static void setUpBeforeClass() throws IOException {
@@ -38,13 +36,19 @@ public class PagedFileTest {
 	}
 	
 	@Test
-	@Ignore
 	public void testAllocatePage() throws IOException {
+		PagedFile pagedFile = PagedFile.create(file1);
+		pagedFile.allocatePage();
+		pagedFile.close();
 	}
 	
 	@Test
-	@Ignore
 	public void testAllocatePageTwice() throws IOException {
+		PagedFile pagedFile = PagedFile.create(file1);
+		pagedFile.allocatePage();
+		pagedFile.allocatePage();
+		pagedFile.allocatePage();
+		pagedFile.close();
 	}
 
 }

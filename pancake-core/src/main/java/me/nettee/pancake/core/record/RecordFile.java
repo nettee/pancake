@@ -4,9 +4,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
+import org.apache.log4j.Logger;
 
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
@@ -14,8 +17,8 @@ import me.nettee.pancake.core.page.PagedFile;
 public class RecordFile {
 
 	private PagedFile file;
-
-	private byte[] magic = "REC-FILE".getBytes(StandardCharsets.US_ASCII);
+	
+	private static final String MAGIC = "REC-FILE";
 
 	private int recordSize;
 	private int numOfRecords;
@@ -26,29 +29,33 @@ public class RecordFile {
 		this.file = file;
 	}
 	
-	public static RecordFile create(PagedFile file, int recordSize) throws IOException {
-		RecordFile recordFile = new RecordFile(file);
+	public static RecordFile create(File file, int recordSize) throws IOException {
+		PagedFile pagedFile = PagedFile.create(file);
+		
+		RecordFile recordFile = new RecordFile(pagedFile);
 		recordFile.recordSize = recordSize;
 		recordFile.numOfRecords = 0;
 		recordFile.numOfPages = 1;
 		recordFile.dataPageStartingNum = 1;
 		
-		if (file.getNumOfPages() == 0) {
-			file.allocatePage();
+		if (pagedFile.getNumOfPages() == 0) {
+			pagedFile.allocatePage();
 		}
-		Page page = file.getFirstPage();
+		Page page = pagedFile.getFirstPage();
 		recordFile.writeMetadata(page.getData());
-		file.forcePage(page.getNum());
+		pagedFile.forcePage(page.getNum());
 		return recordFile;
 	}
 	
-	public static RecordFile open(PagedFile file) throws IOException, AssertionError {
-		if (file.getNumOfPages() == 0) {
+	public static RecordFile open(File file) throws IOException, AssertionError {
+		PagedFile pagedFile = PagedFile.open(file);
+		
+		if (pagedFile.getNumOfPages() == 0) {
 			throw new AssertionError();
 		}
-		Page page = file.getFirstPage();
+		Page page = pagedFile.getFirstPage();
 		
-		RecordFile recordFile = new RecordFile(file);
+		RecordFile recordFile = new RecordFile(pagedFile);
 		recordFile.readMetadata(page.getData());
 		return recordFile;
 	}
@@ -56,9 +63,9 @@ public class RecordFile {
 	private void readMetadata(byte[] src) throws IOException {
 		ByteArrayInputStream bais = new ByteArrayInputStream(src);
 		DataInputStream is = new DataInputStream(bais);
-		byte[] magic0 = new byte[magic.length];
+		byte[] magic0 = new byte[MAGIC.length()];
 		is.read(magic0);
-		if (!magic0.equals(magic)) {
+		if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
 			throw new RecordFileException("magic does not match");
 		}
 		recordSize = is.readInt();
@@ -70,17 +77,13 @@ public class RecordFile {
 	private void writeMetadata(byte[] dest) throws IOException {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		DataOutputStream os = new DataOutputStream(baos);
-		os.write(magic);
+		os.write(MAGIC.getBytes(StandardCharsets.US_ASCII));
 		os.writeInt(recordSize);
 		os.writeInt(numOfRecords);
 		os.writeInt(numOfPages);
 		os.writeInt(dataPageStartingNum);
 		byte[] data = baos.toByteArray();
 		System.arraycopy(data, 0, dest, 0, data.length);
-	}
-
-	private boolean hasMagic(byte[] data) {
-		return Arrays.copyOf(data, magic.length).equals(magic);
 	}
 
 	public void close() throws IOException {
