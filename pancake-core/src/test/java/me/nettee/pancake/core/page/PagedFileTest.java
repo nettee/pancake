@@ -1,9 +1,6 @@
 package me.nettee.pancake.core.page;
 
-import static org.junit.Assert.fail;
-
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import org.junit.After;
@@ -14,8 +11,8 @@ import org.junit.Test;
 
 public class PagedFileTest {
 	
-	private PagedFile pagedFile;
-	private File file;
+	private File file1;
+	private File file2;
 	
 	@BeforeClass
 	public static void setUpBeforeClass() throws IOException {
@@ -24,35 +21,30 @@ public class PagedFileTest {
 	
 	@Before
 	public void setUp() throws IOException {
-		file = new File("/tmp/c.db");
-		if (file.exists()) {
-			file.delete();
-		}
-		file.createNewFile();
-		
-		try {
-			pagedFile = PagedFile.open(file);
-		} catch (FileNotFoundException e) {
-			fail("");
+		file1 = new File("/tmp/a.db");
+		if (file1.exists()) {
+			file1.delete();
 		}
 	}
 	
 	@After
 	public void tearDown() throws IOException {
+	}
+	
+	@Test
+	public void testCreate() {
+		PagedFile pagedFile = PagedFile.create(file1);
 		pagedFile.close();
 	}
 	
 	@Test
 	@Ignore
 	public void testAllocatePage() throws IOException {
-		pagedFile.allocatePage();
 	}
 	
 	@Test
+	@Ignore
 	public void testAllocatePageTwice() throws IOException {
-		pagedFile.allocatePage();
-		pagedFile.allocatePage();
-		pagedFile.allocatePage();
 	}
 
 }
