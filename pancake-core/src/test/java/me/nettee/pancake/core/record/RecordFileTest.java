@@ -15,6 +15,7 @@ public class RecordFileTest {
 		file = new File("/tmp/c.db");
 		if (file.exists()) {
 			file.delete();
+			
 		}
 	}
 	

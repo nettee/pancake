@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.Random;
 import java.util.TreeMap;
 
 import org.apache.log4j.Logger;
@@ -17,9 +18,20 @@ import org.apache.log4j.Logger;
 public class PagedFile {
 
 	private static Logger logger = Logger.getLogger(PagedFile.class);
-
+	
 	private RandomAccessFile file;
-	private TreeMap<Integer, Page> buffer;
+	
+	public static final int BUFFER_SIZE = 4;
+	private Page[] buffer = new Page[BUFFER_SIZE];
+	/**
+	 * Mapping from pageNum to bufSlot
+	 */
+	private TreeMap<Integer, Integer> bufMap;
+	
+	/**
+	 * number of pages
+	 */
+	private int N; 
 
 	private PagedFile(File file) {
 		try {
@@ -30,7 +42,7 @@ public class PagedFile {
 		if (file.length() % Page.PAGE_SIZE != 0) {
 			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
 		}
-		this.buffer = new TreeMap<Integer, Page>();
+		this.bufMap = new TreeMap<Integer, Integer>();
 	}
 
 	public static PagedFile create(File file) {
@@ -45,7 +57,7 @@ public class PagedFile {
 		return pagedFile;
 	}
 
-	public static PagedFile open(File file) throws FileNotFoundException {
+	public static PagedFile open(File file) throws IOException {
 		if (file == null) {
 			throw new NullPointerException();
 		}
@@ -55,11 +67,11 @@ public class PagedFile {
 	}
 
 	private void initPages() {
-		// TODO
+		N = 0;
 	}
 
-	private void loadPages() {
-		// TODO
+	private void loadPages() throws IOException {
+		N = (int) (file.length() / Page.PAGE_SIZE);
 	}
 
 	public void close() {
@@ -69,50 +81,82 @@ public class PagedFile {
 			throw new PagedFileException(e);
 		}
 	}
-
-	private void writePage(Page page) throws IOException {
-		int slot = page.num;
-		file.seek(slot * Page.PAGE_SIZE);
-		file.writeInt(page.num);
-		file.write(page.data);
-		if (file.getFilePointer() != (slot + 1) * Page.PAGE_SIZE) {
+	
+	/**
+	 * Read page object from file.
+	 * @param num page number
+	 * @return
+	 * @throws IOException
+	 */
+	private Page readPage(int num) throws IOException {
+		Page page = new Page(num);
+		file.seek(num * Page.PAGE_SIZE);
+		int pageNum = file.readInt();
+		if (pageNum != num) {
 			throw new AssertionError();
 		}
-	}
-
-	public Page allocatePage() throws IOException {
-
-		int N = getNumOfPages();
-
-		Page page = Page.newInstanceByNum(N);
-
-		writePage(page);
-
-		buffer.put(page.num, page);
-		logger.debug("buffer size: " + buffer.size());
-
+		file.read(page.data);
 		return page;
 	}
 
-	public int getNumOfPages() throws IOException {
-		return (int) (file.length() / 4096);
+	/**
+	 * Write page object to file
+	 * @param page
+	 * @throws IOException
+	 */
+	private void writePage(Page page) throws IOException {
+		int num = page.num;
+		file.seek(num * Page.PAGE_SIZE);
+		file.writeInt(page.num);
+		file.write(page.data);
+		if (file.getFilePointer() != (num + 1) * Page.PAGE_SIZE) {
+			throw new AssertionError();
+		}
+	}
+	
+	private boolean emptyBuffer(int bufSlot) throws IOException {
+		Page page = buffer[bufSlot];
+		if (page == null) {
+			return false;
+		}
+		writePage(page);
+		bufMap.remove(page.num);
+		return true;
+	}
+	
+	private boolean insertIntoBuffer(Page page) throws IOException {
+		Random random = new Random();
+		int i = random.nextInt(BUFFER_SIZE);
+		emptyBuffer(i);
+		buffer[i] = page;
+		bufMap.put(page.num, i);
+		return true;
 	}
 
-	public Page getPage(int N) throws IOException {
+	public Page allocatePage() throws IOException {
+		Page page = new Page(N);
+		N++;
+		insertIntoBuffer(page);
+		return page;
+	}
+	
+	public int getNumOfPages() {
+		return N;
+	}
+
+	public Page getPage(int pageNum) throws IOException {
 		
-		if (N >= getNumOfPages()) {
+		if (pageNum >= N) {
 			throw new PagedFileException("page index out of bound");
 		}
-
-		if (!buffer.containsKey(N)) {
-			file.seek(N * Page.PAGE_SIZE);
-			int pageNum = file.readInt();
-			Page page = Page.newInstanceByNum(pageNum);
-			file.read(page.data);
-			buffer.put(page.num, page);
+		
+		if (!bufMap.containsKey(pageNum)) {
+			// page not in buffer
+			Page page = readPage(pageNum);
+			insertIntoBuffer(page);
 		}
 
-		return buffer.get(N);
+		return buffer[bufMap.get(pageNum)];
 	}
 
 	public Page getFirstPage() throws IOException {
@@ -120,7 +164,7 @@ public class PagedFile {
 	}
 
 	public void forcePage(int pageNum) throws IOException {
-		Page page = buffer.get(pageNum);
+		Page page = buffer[bufMap.get(pageNum)];
 		if (page == null) {
 			throw new AssertionError();
 		}
@@ -128,7 +172,6 @@ public class PagedFile {
 	}
 	
 	public void forceAllPages() throws IOException {
-		int N = getNumOfPages();
 		for (int i = 0; i < N; i++) {
 			forcePage(i);
 		}

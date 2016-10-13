@@ -11,15 +11,17 @@ public class Page {
 	boolean pinned;
 	boolean dirty;
 	byte[] data;
+	
+	Page(int num) {
+		this.num = num;
+		this.pinned = true;
+		this.dirty = true;
+		this.data = new byte[DATA_SIZE];
+		Arrays.fill(this.data, (byte) 0xee);
+	}
 
 	static Page newInstanceByNum(int num) {
-		Page page = new Page();
-		page.num = num;
-		page.pinned = true;
-		page.dirty = true;
-		page.data = new byte[DATA_SIZE];
-		Arrays.fill(page.data, (byte) 0xee);
-		return page;
+		return new Page(num);
 	}
 
 	public int getNum() {

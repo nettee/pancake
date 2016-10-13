@@ -7,9 +7,6 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-
-import org.apache.log4j.Logger;
 
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;

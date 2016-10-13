@@ -43,11 +43,11 @@ public class PagedFileTest {
 	}
 	
 	@Test
-	public void testAllocatePageTwice() throws IOException {
+	public void testAllocatePage2() throws IOException {
 		PagedFile pagedFile = PagedFile.create(file1);
-		pagedFile.allocatePage();
-		pagedFile.allocatePage();
-		pagedFile.allocatePage();
+		for (int i = 0; i < 50; i++) {
+			pagedFile.allocatePage();
+		}
 		pagedFile.close();
 	}
 
