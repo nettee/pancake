@@ -61,6 +61,9 @@ public class PagedFile {
 		if (file == null) {
 			throw new NullPointerException();
 		}
+		if (!file.exists()) {
+			throw new PagedFileException("file does not exist: " + file.getAbsolutePath());
+		}
 		PagedFile pagedFile = new PagedFile(file);
 		pagedFile.loadPages();
 		return pagedFile;
