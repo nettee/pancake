@@ -18,20 +18,20 @@ import org.apache.log4j.Logger;
 public class PagedFile {
 
 	private static Logger logger = Logger.getLogger(PagedFile.class);
-	
+
 	private RandomAccessFile file;
-	
+
 	public static final int BUFFER_SIZE = 4;
 	private Page[] buffer = new Page[BUFFER_SIZE];
 	/**
 	 * Mapping from pageNum to bufSlot
 	 */
 	private TreeMap<Integer, Integer> bufMap;
-	
+
 	/**
 	 * number of pages
 	 */
-	private int N; 
+	private int N;
 
 	private PagedFile(File file) {
 		try {
@@ -84,10 +84,12 @@ public class PagedFile {
 			throw new PagedFileException(e);
 		}
 	}
-	
+
 	/**
 	 * Read page object from file.
-	 * @param num page number
+	 * 
+	 * @param num
+	 *            page number
 	 * @return
 	 * @throws IOException
 	 */
@@ -104,6 +106,7 @@ public class PagedFile {
 
 	/**
 	 * Write page object to file
+	 * 
 	 * @param page
 	 * @throws IOException
 	 */
@@ -116,7 +119,7 @@ public class PagedFile {
 			throw new AssertionError();
 		}
 	}
-	
+
 	private boolean emptyBuffer(int bufSlot) throws IOException {
 		Page page = buffer[bufSlot];
 		if (page == null) {
@@ -126,7 +129,7 @@ public class PagedFile {
 		bufMap.remove(page.num);
 		return true;
 	}
-	
+
 	private boolean insertIntoBuffer(Page page) throws IOException {
 		Random random = new Random();
 		int i = random.nextInt(BUFFER_SIZE);
@@ -142,17 +145,17 @@ public class PagedFile {
 		insertIntoBuffer(page);
 		return page;
 	}
-	
+
 	public int getNumOfPages() {
 		return N;
 	}
 
 	public Page getPage(int pageNum) throws IOException {
-		
+
 		if (pageNum >= N) {
 			throw new PagedFileException("page index out of bound");
 		}
-		
+
 		if (!bufMap.containsKey(pageNum)) {
 			// page not in buffer
 			Page page = readPage(pageNum);
@@ -166,14 +169,36 @@ public class PagedFile {
 		return getPage(0);
 	}
 
+	/**
+	 * This method copies the contents of the page specified by <tt>pageNum</tt>
+	 * from the buffer pool to disk if the page is in the buffer pool and is
+	 * marked as dirty. The page remains in the buffer pool but is no longer
+	 * marked as dirty.
+	 * 
+	 * @param pageNum
+	 * @throws IOException
+	 */
 	public void forcePage(int pageNum) throws IOException {
+		if (!bufMap.containsKey(pageNum)) {
+			// The page is not in the buffer pool
+			return;
+		}
 		Page page = buffer[bufMap.get(pageNum)];
 		if (page == null) {
 			throw new AssertionError();
 		}
 		writePage(page);
 	}
-	
+
+	/**
+	 * This method copies the contents of all the pages in the buffer pool to
+	 * disk. The pages remains in the buffer pool but is no longer marked as
+	 * dirty. Calling this method has the same effect as calling
+	 * <tt>forcePage</tt> on each page.
+	 * 
+	 * @see forcePage
+	 * @throws IOException
+	 */
 	public void forceAllPages() throws IOException {
 		for (int i = 0; i < N; i++) {
 			forcePage(i);
