@@ -8,6 +8,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import org.apache.commons.lang3.NotImplementedException;
+
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 
@@ -139,9 +141,7 @@ public class RecordFile {
 	}
 
 	public byte[] getRecord(RID rid) {
-		if ((rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum >= numOfRecords) {
-			throw new RecordFileException("RID index out of bound");
-		}
+		checkRID(rid);
 		byte[] record = new byte[recordSize];
 		try {
 			Page page = file.getPage(rid.pageNum);
@@ -150,6 +150,26 @@ public class RecordFile {
 			throw new RecordFileException(e);
 		}
 		return record;
+	}
+
+	private void checkRID(RID rid) {
+		if ((rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum >= numOfRecords) {
+			throw new RecordFileException("RID index out of bound");
+		}
+	}
+	
+	public void updateRecord(RID rid, byte[] data) {
+		checkRID(rid);
+		try {
+			Page page = file.getPage(rid.pageNum);
+			System.arraycopy(data, 0, page.getData(), rid.slotNum * recordSize, recordSize);
+		} catch (IOException e) {
+			throw new RecordFileException(e);
+		}
+	}
+	
+	public void deleteRecord(RID rid) {
+		throw new NotImplementedException("not implemented");
 	}
 
 }
