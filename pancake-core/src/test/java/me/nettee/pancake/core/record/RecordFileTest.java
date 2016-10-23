@@ -1,6 +1,7 @@
 package me.nettee.pancake.core.record;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Predicate;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
@@ -147,6 +149,39 @@ public class RecordFileTest {
 			String str = new String(data, StandardCharsets.US_ASCII);
 			assertTrue(ii.hasNext());
 			assertEquals(ii.next(), str);
+		}
+	}
+	
+	@Test
+	public void testScanWithPredicate() {
+		int rounds = 15;
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		
+		List<String> inserted = new ArrayList<>();
+		for (int i = 0; i < rounds; i++) {
+			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			rf.insertRecord(str);
+			inserted.add(str0);
+		}
+		
+		Predicate<byte[]> startsWith_A2N_a2n = (record) -> {
+			byte b0 = record[0];
+			return ((int) b0 >= (int) 'A' && (int) b0 <= (int) 'N')
+					|| ((int) b0 >= (int) 'a' && (int) b0 <= (int) 'n');
+		};
+		Iterator<byte[]> iterator = rf.scan(startsWith_A2N_a2n);
+		Iterator<String> ii = inserted.iterator();
+		while (ii.hasNext()) {
+			String expected0 = ii.next();
+			byte[] expected = expected0.getBytes(StandardCharsets.US_ASCII);
+			if (!startsWith_A2N_a2n.test(expected)) {
+				continue;
+			}
+			assert(iterator.hasNext());
+			byte[] str = iterator.next();
+			String str0 = new String(str, StandardCharsets.US_ASCII);
+			assertEquals(expected0, str0);
 		}
 	}
 

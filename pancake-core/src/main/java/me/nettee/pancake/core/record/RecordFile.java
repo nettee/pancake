@@ -211,14 +211,14 @@ public class RecordFile {
 		RecordIterator(Predicate<byte[]> pred) {
 			this.pred = pred;
 			nextRid = firstRid();
-			next0();
+			search();
 		}
 		
 		/*
-		 * Move nextRid to the next record that satisfies predicate.
+		 * Move nextRid to the first record that satisfies predicate.
 		 * If current nextRid already satisfies, do not move.
 		 */
-		private void next0() {
+		private void search() {
 			if (pred == null) {
 				return;
 			}
@@ -237,7 +237,7 @@ public class RecordFile {
 		public byte[] next() {
 			byte[] data = getRecord(nextRid);
 			nextRid = nextRid(nextRid);
-			next0();
+			search();
 			return data;
 		}
 		
