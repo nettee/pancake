@@ -2,7 +2,10 @@ package me.nettee.pancake.core.record;
 
 public class Record {
 	
-	RID rid;
 	byte[] data;
+	
+	Record(byte[] data) {
+		this.data = data;
+	}
 
 }

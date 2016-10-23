@@ -216,18 +216,18 @@ public class RecordFile {
 			// Filling 0xdd byte(s) is only for debug use.
 			byte[] temp = new byte[recordSize - 2];
 			Arrays.fill(temp, (byte) 0xdd);
-			
+
 			Page page = file.getPage(rid.pageNum);
-			
+
 			byte[] ending = Arrays.copyOfRange(page.getData(), Page.DATA_SIZE - 2, Page.DATA_SIZE);
 			short nextSlotNum = ByteBuffer.wrap(ending).order(ByteOrder.BIG_ENDIAN).getShort();
 			byte[] newData = ByteBuffer.allocate(recordSize).order(ByteOrder.BIG_ENDIAN).putShort(nextSlotNum).put(temp)
 					.array();
 			System.arraycopy(newData, 0, page.getData(), rid.slotNum * recordSize, recordSize);
-			
+
 			byte[] slotNum = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short) rid.slotNum).array();
 			System.arraycopy(slotNum, 0, page.getData(), Page.DATA_SIZE - 2, 2);
-			
+
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -277,11 +277,8 @@ public class RecordFile {
 			if (pred == null) {
 				return;
 			}
-			while (!pred.test(getRecord(nextRid))) {
+			while (ridRecordNumber(nextRid) < numOfRecords && !pred.test(getRecord(nextRid))) {
 				nextRid = nextRid(nextRid);
-				if (ridRecordNumber(nextRid) >= numOfRecords) {
-					return;
-				}
 			}
 		}
 
