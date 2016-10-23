@@ -6,7 +6,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.Predicate;
 
@@ -32,15 +35,34 @@ public class RecordFile {
 	}
 
 	public static RecordFile create(File file, int recordSize) {
+		if (recordSize < 4) {
+			throw new NotImplementedException("record size less than 4 is currently not suppported");
+		}
+
 		try {
 			PagedFile pagedFile = PagedFile.create(file);
+
+			/*
+			 * Record file structure:
+			 * 
+			 * 1. The first page is reserved for header page. Data page starts
+			 * from number 1.
+			 * 
+			 * 2. In each data page, record are stored in a compact way. The
+			 * last 2 bytes of every data page is reserved to store deleted
+			 * record slot index.
+			 * 
+			 * 3. The length of record should be at least 2 bytes. If not, each
+			 * record is padded to 2 bytes. This is convenient for finding
+			 * deleted record slots.
+			 */
 
 			RecordFile recordFile = new RecordFile(pagedFile);
 			recordFile.recordSize = recordSize;
 			recordFile.dataPageStartingNum = 1;
 			recordFile.numOfRecords = 0;
 			recordFile.numOfPages = 1;
-			recordFile.numOfRecordsInOnePage = Page.DATA_SIZE / recordSize;
+			recordFile.numOfRecordsInOnePage = (Page.DATA_SIZE - 2) / recordSize;
 
 			if (pagedFile.getNumOfPages() == 0) {
 				pagedFile.allocatePage();
@@ -131,7 +153,9 @@ public class RecordFile {
 
 		try {
 			if (insertSlotNum == 0) {
-				file.allocatePage();
+				Page page = file.allocatePage();
+				byte[] ending = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short) 0xffff).array();
+				System.arraycopy(ending, 0, page.getData(), Page.DATA_SIZE - 2, 2);
 			}
 			Page page = file.getPage(insertPageNum);
 			System.arraycopy(data, 0, page.getData(), insertSlotNum * recordSize, recordSize);
@@ -188,7 +212,25 @@ public class RecordFile {
 	}
 
 	public void deleteRecord(RID rid) {
-		throw new NotImplementedException("not implemented");
+		try {
+			// Filling 0xdd byte(s) is only for debug use.
+			byte[] temp = new byte[recordSize - 2];
+			Arrays.fill(temp, (byte) 0xdd);
+			
+			Page page = file.getPage(rid.pageNum);
+			
+			byte[] ending = Arrays.copyOfRange(page.getData(), Page.DATA_SIZE - 2, Page.DATA_SIZE);
+			short nextSlotNum = ByteBuffer.wrap(ending).order(ByteOrder.BIG_ENDIAN).getShort();
+			byte[] newData = ByteBuffer.allocate(recordSize).order(ByteOrder.BIG_ENDIAN).putShort(nextSlotNum).put(temp)
+					.array();
+			System.arraycopy(newData, 0, page.getData(), rid.slotNum * recordSize, recordSize);
+			
+			byte[] slotNum = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short) rid.slotNum).array();
+			System.arraycopy(slotNum, 0, page.getData(), Page.DATA_SIZE - 2, 2);
+			
+		} catch (IOException e) {
+			throw new RecordFileException(e);
+		}
 	}
 
 	/**
@@ -204,7 +246,8 @@ public class RecordFile {
 	 * Scan over the records in this file that satisfies predicate
 	 * <tt>pred</tt>.
 	 * 
-	 * @param pred predicate on record data
+	 * @param pred
+	 *            predicate on record data
 	 * @return an <tt>Iterator</tt> to iterate through records
 	 */
 	public Iterator<byte[]> scan(Predicate<byte[]> pred) {

@@ -130,10 +130,28 @@ public class RecordFileTest {
 	}
 
 	@Test
+	public void testDelete() {
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		{
+			String str0 = "abcdefgh";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			rf.deleteRecord(rid);
+		}
+		{
+			String str0 = "bcdefghi";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			rf.deleteRecord(rid);
+		}
+		rf.close();
+	}
+
+	@Test
 	public void testScan() {
 		int rounds = 5;
 		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
-		
+
 		List<String> inserted = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
@@ -151,12 +169,12 @@ public class RecordFileTest {
 			assertEquals(ii.next(), str);
 		}
 	}
-	
+
 	@Test
 	public void testScanWithPredicate() {
 		int rounds = 15;
 		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
-		
+
 		List<String> inserted = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
@@ -164,11 +182,10 @@ public class RecordFileTest {
 			rf.insertRecord(str);
 			inserted.add(str0);
 		}
-		
+
 		Predicate<byte[]> startsWith_A2N_a2n = (record) -> {
 			byte b0 = record[0];
-			return ((int) b0 >= (int) 'A' && (int) b0 <= (int) 'N')
-					|| ((int) b0 >= (int) 'a' && (int) b0 <= (int) 'n');
+			return ((int) b0 >= (int) 'A' && (int) b0 <= (int) 'N') || ((int) b0 >= (int) 'a' && (int) b0 <= (int) 'n');
 		};
 		Iterator<byte[]> iterator = rf.scan(startsWith_A2N_a2n);
 		Iterator<String> ii = inserted.iterator();
@@ -178,7 +195,7 @@ public class RecordFileTest {
 			if (!startsWith_A2N_a2n.test(expected)) {
 				continue;
 			}
-			assert(iterator.hasNext());
+			assert (iterator.hasNext());
 			byte[] str = iterator.next();
 			String str0 = new String(str, StandardCharsets.US_ASCII);
 			assertEquals(expected0, str0);
