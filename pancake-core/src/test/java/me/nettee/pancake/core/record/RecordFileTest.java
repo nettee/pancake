@@ -1,10 +1,13 @@
 package me.nettee.pancake.core.record;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -44,6 +47,7 @@ public class RecordFileTest {
 
 	private abstract class RecordCrudTester {
 		abstract void test0(int rounds);
+
 		void test(int rounds) {
 			try {
 				setUp();
@@ -120,6 +124,29 @@ public class RecordFileTest {
 			for (int rounds : rounds_array) {
 				tester.test(rounds);
 			}
+		}
+	}
+
+	@Test
+	public void testScan() {
+		int rounds = 5;
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		
+		List<String> inserted = new ArrayList<>();
+		for (int i = 0; i < rounds; i++) {
+			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			rf.insertRecord(str);
+			inserted.add(str0);
+		}
+
+		Iterator<byte[]> iterator = rf.scan();
+		Iterator<String> ii = inserted.iterator();
+		while (iterator.hasNext()) {
+			byte[] data = iterator.next();
+			String str = new String(data, StandardCharsets.US_ASCII);
+			assertTrue(ii.hasNext());
+			assertEquals(ii.next(), str);
 		}
 	}
 

@@ -7,6 +7,8 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.function.Predicate;
 
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -141,7 +143,7 @@ public class RecordFile {
 	}
 
 	public byte[] getRecord(RID rid) {
-		checkRID(rid);
+		checkRidIndexBound(rid);
 		byte[] record = new byte[recordSize];
 		try {
 			Page page = file.getPage(rid.pageNum);
@@ -151,15 +153,32 @@ public class RecordFile {
 		}
 		return record;
 	}
+	
+	private int ridRecordNumber(RID rid) {
+		return (rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum;
+	}
+	
+	private RID firstRid() {
+		return new RID(dataPageStartingNum, 0);
+	}
+	
+	private RID nextRid(RID rid) {
+		checkRidIndexBound(rid);
+		if (rid.slotNum < numOfRecordsInOnePage - 1) {
+			return new RID(rid.pageNum, rid.slotNum + 1);
+		} else {
+			return new RID(rid.pageNum + 1, 0);
+		}
+	}
 
-	private void checkRID(RID rid) {
-		if ((rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum >= numOfRecords) {
+	private void checkRidIndexBound(RID rid) {
+		if (ridRecordNumber(rid) >= numOfRecords) {
 			throw new RecordFileException("RID index out of bound");
 		}
 	}
 	
 	public void updateRecord(RID rid, byte[] data) {
-		checkRID(rid);
+		checkRidIndexBound(rid);
 		try {
 			Page page = file.getPage(rid.pageNum);
 			System.arraycopy(data, 0, page.getData(), rid.slotNum * recordSize, recordSize);
@@ -170,6 +189,58 @@ public class RecordFile {
 	
 	public void deleteRecord(RID rid) {
 		throw new NotImplementedException("not implemented");
+	}
+	
+	public Iterator<byte[]> scan() {
+		return new RecordIterator();
+	}
+	
+	public Iterator<byte[]> scan(Predicate<byte[]> pred) {
+		return new RecordIterator(pred);
+	}
+	
+	private class RecordIterator implements Iterator<byte[]> {
+		
+		private Predicate<byte[]> pred;
+		private RID nextRid;
+		
+		RecordIterator() {
+			this(null);
+		}
+		
+		RecordIterator(Predicate<byte[]> pred) {
+			this.pred = pred;
+			nextRid = firstRid();
+			next0();
+		}
+		
+		/*
+		 * Move nextRid to the next record that satisfies predicate.
+		 * If current nextRid already satisfies, do not move.
+		 */
+		private void next0() {
+			if (pred == null) {
+				return;
+			}
+			while (!pred.test(getRecord(nextRid))) {
+				nextRid = nextRid(nextRid);
+				if (ridRecordNumber(nextRid) >= numOfRecords) {
+					return;
+				}
+			}
+		}
+
+		public boolean hasNext() {
+			return ridRecordNumber(nextRid) < numOfRecords;
+		}
+
+		public byte[] next() {
+			byte[] data = getRecord(nextRid);
+			nextRid = nextRid(nextRid);
+			next0();
+			return data;
+		}
+		
 	}
 
 }
