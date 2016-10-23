@@ -153,15 +153,15 @@ public class RecordFile {
 		}
 		return record;
 	}
-	
+
 	private int ridRecordNumber(RID rid) {
 		return (rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum;
 	}
-	
+
 	private RID firstRid() {
 		return new RID(dataPageStartingNum, 0);
 	}
-	
+
 	private RID nextRid(RID rid) {
 		checkRidIndexBound(rid);
 		if (rid.slotNum < numOfRecordsInOnePage - 1) {
@@ -176,7 +176,7 @@ public class RecordFile {
 			throw new RecordFileException("RID index out of bound");
 		}
 	}
-	
+
 	public void updateRecord(RID rid, byte[] data) {
 		checkRidIndexBound(rid);
 		try {
@@ -186,37 +186,49 @@ public class RecordFile {
 			throw new RecordFileException(e);
 		}
 	}
-	
+
 	public void deleteRecord(RID rid) {
 		throw new NotImplementedException("not implemented");
 	}
-	
+
+	/**
+	 * Scan over all the records in this file.
+	 * 
+	 * @return an <tt>Iterator</tt> to iterate through records
+	 */
 	public Iterator<byte[]> scan() {
 		return new RecordIterator();
 	}
-	
+
+	/**
+	 * Scan over the records in this file that satisfies predicate
+	 * <tt>pred</tt>.
+	 * 
+	 * @param pred predicate on record data
+	 * @return an <tt>Iterator</tt> to iterate through records
+	 */
 	public Iterator<byte[]> scan(Predicate<byte[]> pred) {
 		return new RecordIterator(pred);
 	}
-	
+
 	private class RecordIterator implements Iterator<byte[]> {
-		
+
 		private Predicate<byte[]> pred;
 		private RID nextRid;
-		
+
 		RecordIterator() {
 			this(null);
 		}
-		
+
 		RecordIterator(Predicate<byte[]> pred) {
 			this.pred = pred;
 			nextRid = firstRid();
 			search();
 		}
-		
+
 		/*
-		 * Move nextRid to the first record that satisfies predicate.
-		 * If current nextRid already satisfies, do not move.
+		 * Move nextRid to the first record that satisfies predicate. If current
+		 * nextRid already satisfies, do not move.
 		 */
 		private void search() {
 			if (pred == null) {
@@ -240,7 +252,7 @@ public class RecordFile {
 			search();
 			return data;
 		}
-		
+
 	}
 
 }
