@@ -11,6 +11,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 
 import org.apache.commons.lang3.NotImplementedException;
@@ -22,16 +24,16 @@ public class RecordFile {
 
 	private PagedFile file;
 
-	private static final String MAGIC = "REC-FILE";
-
-	private int recordSize;
-	private int dataPageStartingNum;
-	private int numOfRecords;
-	private int numOfPages;
-	private int numOfRecordsInOnePage;
+	
+	
+	private Metadata metadata;
+	
+	private Map<Integer, RecordPage> buffer;
 
 	private RecordFile(PagedFile file) throws IOException {
 		this.file = file;
+		metadata = new Metadata();
+		buffer = new TreeMap<>();
 	}
 
 	public static RecordFile create(File file, int recordSize) {
@@ -58,17 +60,17 @@ public class RecordFile {
 			 */
 
 			RecordFile recordFile = new RecordFile(pagedFile);
-			recordFile.recordSize = recordSize;
-			recordFile.dataPageStartingNum = 1;
-			recordFile.numOfRecords = 0;
-			recordFile.numOfPages = 1;
-			recordFile.numOfRecordsInOnePage = (Page.DATA_SIZE - 2) / recordSize;
+			recordFile.metadata.recordSize = recordSize;
+			recordFile.metadata.dataPageStartingNum = 1;
+			recordFile.metadata.numOfRecords = 0;
+			recordFile.metadata.numOfPages = 1;
+			recordFile.metadata.numOfRecordsInOnePage = (Page.DATA_SIZE - 2) / recordSize;
 
 			if (pagedFile.getNumOfPages() == 0) {
 				pagedFile.allocatePage();
 			}
 			Page page = pagedFile.getFirstPage();
-			recordFile.writeMetadata(page.getData());
+			recordFile.metadata.write(page.getData());
 			pagedFile.forcePage(page.getNum());
 			return recordFile;
 		} catch (IOException e) {
@@ -86,48 +88,13 @@ public class RecordFile {
 			Page page = pagedFile.getFirstPage();
 
 			RecordFile recordFile = new RecordFile(pagedFile);
-			recordFile.readMetadata(page.getData());
+			recordFile.metadata.read(page.getData());
 			return recordFile;
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
 	}
 
-	private void readMetadata(byte[] src) {
-		try {
-			ByteArrayInputStream bais = new ByteArrayInputStream(src);
-			DataInputStream is = new DataInputStream(bais);
-			byte[] magic0 = new byte[MAGIC.length()];
-			is.read(magic0);
-			if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
-				throw new RecordFileException("magic does not match");
-			}
-			recordSize = is.readInt();
-			dataPageStartingNum = is.readInt();
-			numOfRecords = is.readInt();
-			numOfPages = is.readInt();
-			numOfRecordsInOnePage = is.readInt();
-		} catch (IOException e) {
-			throw new RecordFileException(e);
-		}
-	}
-
-	private void writeMetadata(byte[] dest) {
-		try {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			DataOutputStream os = new DataOutputStream(baos);
-			os.write(MAGIC.getBytes(StandardCharsets.US_ASCII));
-			os.writeInt(recordSize);
-			os.writeInt(dataPageStartingNum);
-			os.writeInt(numOfRecords);
-			os.writeInt(numOfPages);
-			os.writeInt(numOfRecordsInOnePage);
-			byte[] data = baos.toByteArray();
-			System.arraycopy(data, 0, dest, 0, data.length);
-		} catch (IOException e) {
-			throw new RecordFileException(e);
-		}
-	}
 
 	public void close() {
 		try {
@@ -148,8 +115,8 @@ public class RecordFile {
 	 */
 	public RID insertRecord(byte[] data) {
 
-		int insertPageNum = dataPageStartingNum + numOfRecords / numOfRecordsInOnePage;
-		int insertSlotNum = numOfRecords % numOfRecordsInOnePage;
+		int insertPageNum = metadata.dataPageStartingNum + metadata.numOfRecords / metadata.numOfRecordsInOnePage;
+		int insertSlotNum = metadata.numOfRecords % metadata.numOfRecordsInOnePage;
 
 		try {
 			if (insertSlotNum == 0) {
@@ -158,8 +125,8 @@ public class RecordFile {
 				System.arraycopy(ending, 0, page.getData(), Page.DATA_SIZE - 2, 2);
 			}
 			Page page = file.getPage(insertPageNum);
-			System.arraycopy(data, 0, page.getData(), insertSlotNum * recordSize, recordSize);
-			numOfRecords++;
+			System.arraycopy(data, 0, page.getData(), insertSlotNum * metadata.recordSize, metadata.recordSize);
+			metadata.numOfRecords += 1;
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -168,10 +135,10 @@ public class RecordFile {
 
 	public byte[] getRecord(RID rid) {
 		checkRidIndexBound(rid);
-		byte[] record = new byte[recordSize];
+		byte[] record = new byte[metadata.recordSize];
 		try {
 			Page page = file.getPage(rid.pageNum);
-			System.arraycopy(page.getData(), rid.slotNum * recordSize, record, 0, recordSize);
+			System.arraycopy(page.getData(), rid.slotNum * metadata.recordSize, record, 0, metadata.recordSize);
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -179,16 +146,16 @@ public class RecordFile {
 	}
 
 	private int ridRecordNumber(RID rid) {
-		return (rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum;
+		return (rid.pageNum - metadata.dataPageStartingNum) * metadata.numOfRecordsInOnePage + rid.slotNum;
 	}
 
 	private RID firstRid() {
-		return new RID(dataPageStartingNum, 0);
+		return new RID(metadata.dataPageStartingNum, 0);
 	}
 
 	private RID nextRid(RID rid) {
 		checkRidIndexBound(rid);
-		if (rid.slotNum < numOfRecordsInOnePage - 1) {
+		if (rid.slotNum < metadata.numOfRecordsInOnePage - 1) {
 			return new RID(rid.pageNum, rid.slotNum + 1);
 		} else {
 			return new RID(rid.pageNum + 1, 0);
@@ -196,7 +163,7 @@ public class RecordFile {
 	}
 
 	private void checkRidIndexBound(RID rid) {
-		if (ridRecordNumber(rid) >= numOfRecords) {
+		if (ridRecordNumber(rid) >= metadata.numOfRecords) {
 			throw new RecordFileException("RID index out of bound");
 		}
 	}
@@ -205,7 +172,7 @@ public class RecordFile {
 		checkRidIndexBound(rid);
 		try {
 			Page page = file.getPage(rid.pageNum);
-			System.arraycopy(data, 0, page.getData(), rid.slotNum * recordSize, recordSize);
+			System.arraycopy(data, 0, page.getData(), rid.slotNum * metadata.recordSize, metadata.recordSize);
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -214,16 +181,16 @@ public class RecordFile {
 	public void deleteRecord(RID rid) {
 		try {
 			// Filling 0xdd byte(s) is only for debug use.
-			byte[] temp = new byte[recordSize - 2];
+			byte[] temp = new byte[metadata.recordSize - 2];
 			Arrays.fill(temp, (byte) 0xdd);
 
 			Page page = file.getPage(rid.pageNum);
 
 			byte[] ending = Arrays.copyOfRange(page.getData(), Page.DATA_SIZE - 2, Page.DATA_SIZE);
 			short nextSlotNum = ByteBuffer.wrap(ending).order(ByteOrder.BIG_ENDIAN).getShort();
-			byte[] newData = ByteBuffer.allocate(recordSize).order(ByteOrder.BIG_ENDIAN).putShort(nextSlotNum).put(temp)
+			byte[] newData = ByteBuffer.allocate(metadata.recordSize).order(ByteOrder.BIG_ENDIAN).putShort(nextSlotNum).put(temp)
 					.array();
-			System.arraycopy(newData, 0, page.getData(), rid.slotNum * recordSize, recordSize);
+			System.arraycopy(newData, 0, page.getData(), rid.slotNum * metadata.recordSize, metadata.recordSize);
 
 			byte[] slotNum = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short) rid.slotNum).array();
 			System.arraycopy(slotNum, 0, page.getData(), Page.DATA_SIZE - 2, 2);
@@ -277,13 +244,13 @@ public class RecordFile {
 			if (pred == null) {
 				return;
 			}
-			while (ridRecordNumber(nextRid) < numOfRecords && !pred.test(getRecord(nextRid))) {
+			while (ridRecordNumber(nextRid) < metadata.numOfRecords && !pred.test(getRecord(nextRid))) {
 				nextRid = nextRid(nextRid);
 			}
 		}
 
 		public boolean hasNext() {
-			return ridRecordNumber(nextRid) < numOfRecords;
+			return ridRecordNumber(nextRid) < metadata.numOfRecords;
 		}
 
 		public byte[] next() {
