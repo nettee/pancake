@@ -53,4 +53,7 @@ public class Metadata {
 		}
 	}
 	
+	int ridRecordNumber(RID rid) {
+		return (rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum;
+	}
 }

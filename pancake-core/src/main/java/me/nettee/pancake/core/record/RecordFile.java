@@ -1,14 +1,9 @@
 package me.nettee.pancake.core.record;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -145,9 +140,6 @@ public class RecordFile {
 		return record;
 	}
 
-	private int ridRecordNumber(RID rid) {
-		return (rid.pageNum - metadata.dataPageStartingNum) * metadata.numOfRecordsInOnePage + rid.slotNum;
-	}
 
 	private RID firstRid() {
 		return new RID(metadata.dataPageStartingNum, 0);
@@ -163,7 +155,7 @@ public class RecordFile {
 	}
 
 	private void checkRidIndexBound(RID rid) {
-		if (ridRecordNumber(rid) >= metadata.numOfRecords) {
+		if (metadata.ridRecordNumber(rid) >= metadata.numOfRecords) {
 			throw new RecordFileException("RID index out of bound");
 		}
 	}
@@ -244,13 +236,13 @@ public class RecordFile {
 			if (pred == null) {
 				return;
 			}
-			while (ridRecordNumber(nextRid) < metadata.numOfRecords && !pred.test(getRecord(nextRid))) {
+			while (metadata.ridRecordNumber(nextRid) < metadata.numOfRecords && !pred.test(getRecord(nextRid))) {
 				nextRid = nextRid(nextRid);
 			}
 		}
 
 		public boolean hasNext() {
-			return ridRecordNumber(nextRid) < metadata.numOfRecords;
+			return metadata.ridRecordNumber(nextRid) < metadata.numOfRecords;
 		}
 
 		public byte[] next() {
