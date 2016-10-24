@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 
 public class Metadata {
 	
+	public static final int NO_FREE_PAGE = -1; 
+	
 	private static final String MAGIC = "REC-FILE";
 
 	int recordSize;
@@ -16,6 +18,7 @@ public class Metadata {
 	int numOfRecords;
 	int numOfPages;
 	int numOfRecordsInOnePage;
+	int firstFreePage;
 	
 	void read(byte[] src) {
 		try {
@@ -31,6 +34,7 @@ public class Metadata {
 			numOfRecords = is.readInt();
 			numOfPages = is.readInt();
 			numOfRecordsInOnePage = is.readInt();
+			firstFreePage = is.readInt();
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -46,6 +50,7 @@ public class Metadata {
 			os.writeInt(numOfRecords);
 			os.writeInt(numOfPages);
 			os.writeInt(numOfRecordsInOnePage);
+			os.writeInt(firstFreePage);
 			byte[] data = baos.toByteArray();
 			System.arraycopy(data, 0, dest, 0, data.length);
 		} catch (IOException e) {
