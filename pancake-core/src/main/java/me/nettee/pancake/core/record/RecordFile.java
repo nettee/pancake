@@ -18,8 +18,6 @@ import me.nettee.pancake.core.page.PagedFile;
 public class RecordFile {
 
 	private PagedFile file;
-
-	
 	
 	private Metadata metadata;
 	
@@ -252,6 +250,16 @@ public class RecordFile {
 			return data;
 		}
 
+	}
+	
+	void ttt() {
+		try {
+			Page page = file.getPage(1);
+			new RecordPage(page, metadata);
+		} catch (IOException e) {
+			throw new AssertionError(e);
+		}
+		
 	}
 
 }

@@ -201,5 +201,24 @@ public class RecordFileTest {
 			assertEquals(expected0, str0);
 		}
 	}
+	
+	@Test
+	public void test0() {
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		{
+			String str0 = "abcdefgh";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			rf.deleteRecord(rid);
+		}
+		{
+			String str0 = "bcdefghi";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			rf.deleteRecord(rid);
+		}
+		rf.ttt();
+		rf.close();
+	}
 
 }
