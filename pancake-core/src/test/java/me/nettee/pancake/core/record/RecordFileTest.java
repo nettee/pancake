@@ -55,11 +55,11 @@ public class RecordFileTest {
 			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
 			RID rid = rf.insertRecord(str);
 		}
-//		{
-//			String str0 = "bcdefgh ";
-//			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
-//			RID rid = rf.insertRecord(str);
-//		}
+		{
+			String str0 = "bcdefgh ";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+		}
 		rf.close();
 	}
 

@@ -147,6 +147,7 @@ public class RecordFile {
 		//
 		// RecordPage recordPage = getRecordPage(insertPageNum);
 		int insertedSlotNum = recordPage.insert(data);
+		recordPage.force();
 		// recordPage.force();
 		//
 		//// Page page = file.getPage(insertPageNum);
