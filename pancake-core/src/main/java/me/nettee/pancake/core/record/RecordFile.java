@@ -2,13 +2,6 @@ package me.nettee.pancake.core.record;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.function.Predicate;
 
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -99,15 +92,24 @@ public class RecordFile {
 	}
 
 	private RecordPage getFreeRecordPage() {
-		try {
-			if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+			try {
 				Page page = file.allocatePage();
 				metadata.firstFreePage = page.getNum();
 				return RecordPage.create(page, metadata.recordSize);
-			} else {
-				Page page = file.getPage(metadata.firstFreePage);
-				return RecordPage.open(page);
+			} catch (IOException e) {
+				throw new RecordFileException(e);
 			}
+		} else {
+			return getRecordPage(metadata.firstFreePage);
+		}
+
+	}
+
+	private RecordPage getRecordPage(int pageNum) {
+		try {
+			Page page = file.getPage(pageNum);
+			return RecordPage.open(page);
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -121,114 +123,34 @@ public class RecordFile {
 	 * @return record identifier <tt>RID</tt>
 	 */
 	public RID insertRecord(byte[] data) {
-
-		// int insertPageNum = metadata.dataPageStartingNum +
-		// metadata.numOfRecords / metadata.numOfRecordsInOnePage;
-		// int insertSlotNum = metadata.numOfRecords %
-		// metadata.numOfRecordsInOnePage;
-		//
 		RecordPage recordPage = getFreeRecordPage();
 		int insertedPageNum = recordPage.getPage().getNum();
-
-		// if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
-		// Page page = file.allocatePage();
-		// insertPageNum = page.getNum();
-		// } else {
-		// insertPageNum = metadata.firstFreePage;
-		// }
-		// if (insertSlotNum == 0) {
-		// Page page = file.allocatePage();
-		// byte[] ending =
-		// ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short)
-		// 0xffff).array();
-		// System.arraycopy(ending, 0, page.getData(), Page.DATA_SIZE - 2,
-		// 2);
-		// }
-		//
-		// RecordPage recordPage = getRecordPage(insertPageNum);
 		int insertedSlotNum = recordPage.insert(data);
 		recordPage.force();
-		// recordPage.force();
-		//
-		//// Page page = file.getPage(insertPageNum);
-		//// System.arraycopy(data, 0, page.getData(), insertSlotNum *
-		// metadata.recordSize, metadata.recordSize);
 		metadata.numOfRecords += 1;
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
-	// public byte[] getRecord(RID rid) {
-	// checkRidIndexBound(rid);
-	// byte[] record = new byte[metadata.recordSize];
-	// try {
-	// Page page = file.getPage(rid.pageNum);
-	// System.arraycopy(page.getData(), rid.slotNum * metadata.recordSize,
-	// record, 0, metadata.recordSize);
-	// } catch (IOException e) {
-	// throw new RecordFileException(e);
-	// }
-	// return record;
-	// }
-	//
-	//
-	// private RID firstRid() {
-	// return new RID(metadata.dataPageStartingNum, 0);
-	// }
-	//
-	// private RID nextRid(RID rid) {
-	// checkRidIndexBound(rid);
-	// if (rid.slotNum < metadata.numOfRecordsInOnePage - 1) {
-	// return new RID(rid.pageNum, rid.slotNum + 1);
-	// } else {
-	// return new RID(rid.pageNum + 1, 0);
-	// }
-	// }
-	//
-	// private void checkRidIndexBound(RID rid) {
-	// if (metadata.ridRecordNumber(rid) >= metadata.numOfRecords) {
-	// throw new RecordFileException("RID index out of bound");
-	// }
-	// }
-	//
-	// public void updateRecord(RID rid, byte[] data) {
-	// checkRidIndexBound(rid);
-	// try {
-	// Page page = file.getPage(rid.pageNum);
-	// System.arraycopy(data, 0, page.getData(), rid.slotNum *
-	// metadata.recordSize, metadata.recordSize);
-	// } catch (IOException e) {
-	// throw new RecordFileException(e);
-	// }
-	// }
-	//
-	// public void deleteRecord(RID rid) {
-	// try {
-	// // Filling 0xdd byte(s) is only for debug use.
-	// byte[] temp = new byte[metadata.recordSize - 2];
-	// Arrays.fill(temp, (byte) 0xdd);
-	//
-	// Page page = file.getPage(rid.pageNum);
-	//
-	// byte[] ending = Arrays.copyOfRange(page.getData(), Page.DATA_SIZE - 2,
-	// Page.DATA_SIZE);
-	// short nextSlotNum =
-	// ByteBuffer.wrap(ending).order(ByteOrder.BIG_ENDIAN).getShort();
-	// byte[] newData =
-	// ByteBuffer.allocate(metadata.recordSize).order(ByteOrder.BIG_ENDIAN).putShort(nextSlotNum).put(temp)
-	// .array();
-	// System.arraycopy(newData, 0, page.getData(), rid.slotNum *
-	// metadata.recordSize, metadata.recordSize);
-	//
-	// byte[] slotNum =
-	// ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort((short)
-	// rid.slotNum).array();
-	// System.arraycopy(slotNum, 0, page.getData(), Page.DATA_SIZE - 2, 2);
-	//
-	// } catch (IOException e) {
-	// throw new RecordFileException(e);
-	// }
-	// }
-	//
+	public byte[] getRecord(RID rid) {
+		RecordPage recordPage = getRecordPage(rid.pageNum);
+		byte[] record = recordPage.get(rid.slotNum);
+		recordPage.force();
+		return record;
+	}
+
+	public void updateRecord(RID rid, byte[] data) {
+		RecordPage recordPage = getRecordPage(rid.pageNum);
+		recordPage.update(rid.slotNum, data);
+		recordPage.force();
+	}
+
+	public void deleteRecord(RID rid) {
+		RecordPage recordPage = getRecordPage(rid.pageNum);
+		recordPage.delete(rid.slotNum);
+		recordPage.force();
+		metadata.numOfRecords -= 1;
+	}
+
 	// /**
 	// * Scan over all the records in this file.
 	// *

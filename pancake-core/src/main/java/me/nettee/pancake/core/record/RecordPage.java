@@ -84,12 +84,14 @@ public class RecordPage {
 	public static RecordPage create(Page page, int recordSize) {
 		RecordPage recordPage = new RecordPage(page);
 		recordPage.init(recordSize);
+		System.out.print(recordPage.dump());
 		return recordPage;
 	}
 
 	public static RecordPage open(Page page) {
 		RecordPage recordPage = new RecordPage(page);
 		recordPage.load();
+		System.out.print(recordPage.dump());
 		return recordPage;
 	}
 
@@ -130,7 +132,6 @@ public class RecordPage {
 	}
 
 	private void load() {
-
 		byte[] headerByteArray = Arrays.copyOf(page.getData(), HEADER_SIZE);
 		header.fromByteArray(headerByteArray);
 		byte[] bitsetByteArray = Arrays.copyOfRange(page.getData(), HEADER_SIZE, header.bitsetSize);
@@ -184,24 +185,55 @@ public class RecordPage {
 		sb.append("+----------------------------------------------------------------------------+\n");
 		return sb.toString();
 	}
+	
+	private void checkRecordExistence(int slotNum) {
+		if (bitset.get(slotNum) == false) {
+			throw new RecordFileException(String.format("record %d doest not exist", slotNum));
+		}
+		checkRecordBufferConsistency(slotNum);
+	}
+	
+	private void checkRecordBufferConsistency(int slotNum) {
+		boolean existsInBitset = bitset.get(slotNum);
+		boolean existsInRecordsArray = records[slotNum] != null;
+		if (existsInBitset != existsInRecordsArray) {
+			throw new RecordFileException("inconsistent internal state at slot " + slotNum);
+		}
+	}
 
 	public int insert(byte[] data) {
-		System.out.println("calling insert");
 		int insertedSlotNum = 0;
+		// find free slot
 		while (bitset.get(insertedSlotNum) == true) {
 			insertedSlotNum++;
 			if (insertedSlotNum >= header.numOfRecordsInTotal) {
 				throw new RecordFileException("insert error: no free slot left");
 			}
 		}
-		if (records[insertedSlotNum] != null) {
-			throw new RecordFileException("inconsistent internal state at slot " + insertedSlotNum);
-		}
+		checkRecordBufferConsistency(insertedSlotNum);
 		bitset.set(insertedSlotNum);
 		records[insertedSlotNum] = new Record(Arrays.copyOf(data, data.length));
-		System.out.print(dump());
 		return insertedSlotNum;
 	}
+	
+	public byte[] get(int slotNum) {
+		checkRecordExistence(slotNum);
+		byte[] data = records[slotNum].data; 
+		return data;
+	}
+	
+	public void update(int slotNum, byte[] data) {
+		checkRecordExistence(slotNum);
+		records[slotNum].data = Arrays.copyOf(data, data.length);
+	}
+	
+	public void delete(int slotNum) {
+		checkRecordExistence(slotNum);
+		bitset.set(slotNum, false);
+		records[slotNum] = null;
+	}
+	
+	
 
 	private static short ab2s(byte[] ab) {
 		if (ab.length != 2) {
