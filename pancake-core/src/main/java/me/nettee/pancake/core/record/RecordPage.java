@@ -9,18 +9,21 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Iterator;
+import java.util.function.Predicate;
 
 import me.nettee.pancake.core.page.Page;
 
 public class RecordPage {
 
-	public static final int HEADER_SIZE = 16;
+	public static final int HEADER_SIZE = 20;
 
 	private class Header {
 
 		int nextFreePage;
 		int recordSize;
-		int numOfRecordsInTotal;
+		int recordNum;
+		int capacity;
 		int bitsetSize;
 
 		void fromByteArray(byte[] src) {
@@ -29,7 +32,8 @@ public class RecordPage {
 				DataInputStream is = new DataInputStream(bais);
 				nextFreePage = is.readInt();
 				recordSize = is.readInt();
-				numOfRecordsInTotal = is.readInt();
+				recordNum = is.readInt();
+				capacity = is.readInt();
 				bitsetSize = is.readInt();
 			} catch (IOException e) {
 				throw new RecordFileException(e);
@@ -42,7 +46,8 @@ public class RecordPage {
 				DataOutputStream os = new DataOutputStream(baos);
 				os.writeInt(nextFreePage);
 				os.writeInt(recordSize);
-				os.writeInt(numOfRecordsInTotal);
+				os.writeInt(recordNum);
+				os.writeInt(capacity);
 				os.writeInt(bitsetSize);
 				byte[] byteArray = baos.toByteArray();
 				if (byteArray.length != HEADER_SIZE) {
@@ -60,7 +65,9 @@ public class RecordPage {
 			sb.append("\n");
 			sb.append(String.format("record size: %d", recordSize));
 			sb.append("\n");
-			sb.append(String.format("number of records: %d", numOfRecordsInTotal));
+			sb.append(String.format("number of records: %d", recordNum));
+			sb.append("\n");
+			sb.append(String.format("page capacity: %d", capacity));
 			sb.append("\n");
 			sb.append(String.format("bitset size: %d", bitsetSize));
 			sb.append("\n");
@@ -73,8 +80,6 @@ public class RecordPage {
 	private Header header;
 	private BitSet bitset;
 	private Record[] records;
-
-	// private int N; // number of records in this page
 
 	private RecordPage(Page page) {
 		this.page = page;
@@ -102,7 +107,8 @@ public class RecordPage {
 	private void init(int recordSize) {
 		header.nextFreePage = Metadata.NO_FREE_PAGE;
 		header.recordSize = recordSize;
-
+		header.recordNum = 0;
+		
 		/*
 		 * Calculate bitset size:
 		 * 
@@ -123,7 +129,7 @@ public class RecordPage {
 		int capacity = Page.DATA_SIZE - HEADER_SIZE;
 		// workaround "minus one"
 		int n = (8 * capacity - 7) / (8 * recordSize + 1) - 1;
-		header.numOfRecordsInTotal = n;
+		header.capacity = n;
 		header.bitsetSize = (int) Math.ceil((double) n / 8);
 
 		bitset = new BitSet(n + 1);
@@ -136,7 +142,7 @@ public class RecordPage {
 		header.fromByteArray(headerByteArray);
 		byte[] bitsetByteArray = Arrays.copyOfRange(page.getData(), HEADER_SIZE, header.bitsetSize);
 		bitset = BitSet.valueOf(bitsetByteArray);
-		int n = header.numOfRecordsInTotal;
+		int n = header.capacity;
 		records = new Record[n];
 		for (int i = 0; i < n; i++) {
 			if (bitset.get(i)) {
@@ -146,21 +152,21 @@ public class RecordPage {
 		}
 	}
 
-	private void persist() {
+	private void persist0() {
 		byte[] headerBytes = header.toByteArray();
 		System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 		byte[] bitsetBytes = bitset.toByteArray();
 		System.out.println("bitset bytes length: " + bitset.length());
 		System.arraycopy(bitsetBytes, 0, page.getData(), HEADER_SIZE, bitsetBytes.length);
-		for (int i = 0; i < header.numOfRecordsInTotal; i++) {
+		for (int i = 0; i < header.capacity; i++) {
 			if (bitset.get(i)) {
 				System.arraycopy(records[i].data, 0, page.getData(), recordPos(i), header.recordSize);
 			}
 		}
 	}
 
-	public void force() {
-		persist();
+	public void persist() {
+		persist0();
 	}
 
 	public String dump() {
@@ -170,7 +176,7 @@ public class RecordPage {
 		sb.append("\n");
 		sb.append(header.dump());
 		sb.append("Bitset:\n");
-		for (int i = 0; i < header.numOfRecordsInTotal; i++) {
+		for (int i = 0; i < header.capacity; i++) {
 			if (i % 64 == 0) {
 				sb.append(String.format("%3d: ", i));
 			} else if (i % 8 == 0) {
@@ -206,7 +212,7 @@ public class RecordPage {
 		// find free slot
 		while (bitset.get(insertedSlotNum) == true) {
 			insertedSlotNum++;
-			if (insertedSlotNum >= header.numOfRecordsInTotal) {
+			if (insertedSlotNum >= header.capacity) {
 				throw new RecordFileException("insert error: no free slot left");
 			}
 		}
@@ -231,11 +237,10 @@ public class RecordPage {
 		checkRecordExistence(slotNum);
 		bitset.set(slotNum, false);
 		records[slotNum] = null;
+		System.out.print(dump());
 	}
-	
-	
 
-	private static short ab2s(byte[] ab) {
+	public static short ab2s(byte[] ab) {
 		if (ab.length != 2) {
 			throw new IllegalArgumentException();
 		}
@@ -243,13 +248,35 @@ public class RecordPage {
 		return s;
 	}
 
-	private static byte[] s2ab(short s) {
+	public static byte[] s2ab(short s) {
 		byte[] ab = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort(s).array();
 		return ab;
 	}
 
 	public Page getPage() {
 		return page;
+	}
+	
+	public static class RecordIterator implements Iterator<byte[]> {
+		
+		private final Predicate<byte[]> pred;
+
+		public RecordIterator(Predicate<byte[]> pred) {
+			this.pred = pred;
+		}
+
+		@Override
+		public boolean hasNext() {
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public byte[] next() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+		
 	}
 
 }

@@ -49,7 +49,7 @@ public class RecordFileTest {
 	}
 	
 	@Test
-	public void testInsert() {
+	public void testInsert0() {
 		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
 		{
 			String str0 = "abcdefg ";
@@ -65,7 +65,29 @@ public class RecordFileTest {
 	}
 	
 	@Test
-	public void testUpdate() {
+	public void testGet0() {
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		{
+			String str0 = "abcdefg ";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			byte[] gstr = rf.getRecord(rid);
+			String gstr0 = new String(gstr, StandardCharsets.US_ASCII);
+			assertEquals(str0, gstr0);
+		}
+		{
+			String str0 = "bcdefgh ";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			byte[] gstr = rf.getRecord(rid);
+			String gstr0 = new String(gstr, StandardCharsets.US_ASCII);
+			assertEquals(str0, gstr0);
+		}
+		rf.close();
+	}
+	
+	@Test
+	public void testUpdate0() {
 		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
 		{
 			String str0 = "abcdefg ";
@@ -80,6 +102,25 @@ public class RecordFileTest {
 			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
 			RID rid = rf.insertRecord(str);
 		}
+		rf.close();
+	}
+	
+	@Test
+	public void testDelete0() {
+		RecordFile rf = RecordFile.create(file, RECORD_SIZE);
+		RID rid0;
+		{
+			String str0 = "abcdefg ";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+			rid0 = rid;
+		}
+		{
+			String str0 = "bcdefgh ";
+			byte[] str = str0.getBytes(StandardCharsets.US_ASCII);
+			RID rid = rf.insertRecord(str);
+		}
+		rf.deleteRecord(rid0);
 		rf.close();
 	}
 
