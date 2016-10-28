@@ -22,7 +22,7 @@ public class RecordPage {
 
 		int nextFreePage;
 		int recordSize;
-		int recordNum;
+		int numberOfRecords;
 		int capacity;
 		int bitsetSize;
 
@@ -32,7 +32,7 @@ public class RecordPage {
 				DataInputStream is = new DataInputStream(bais);
 				nextFreePage = is.readInt();
 				recordSize = is.readInt();
-				recordNum = is.readInt();
+				numberOfRecords = is.readInt();
 				capacity = is.readInt();
 				bitsetSize = is.readInt();
 			} catch (IOException e) {
@@ -46,7 +46,7 @@ public class RecordPage {
 				DataOutputStream os = new DataOutputStream(baos);
 				os.writeInt(nextFreePage);
 				os.writeInt(recordSize);
-				os.writeInt(recordNum);
+				os.writeInt(numberOfRecords);
 				os.writeInt(capacity);
 				os.writeInt(bitsetSize);
 				byte[] byteArray = baos.toByteArray();
@@ -65,7 +65,7 @@ public class RecordPage {
 			sb.append("\n");
 			sb.append(String.format("record size: %d", recordSize));
 			sb.append("\n");
-			sb.append(String.format("number of records: %d", recordNum));
+			sb.append(String.format("number of records: %d", numberOfRecords));
 			sb.append("\n");
 			sb.append(String.format("page capacity: %d", capacity));
 			sb.append("\n");
@@ -80,6 +80,8 @@ public class RecordPage {
 	private Header header;
 	private BitSet bitset;
 	private Record[] records;
+	
+	private boolean debug;
 
 	private RecordPage(Page page) {
 		this.page = page;
@@ -89,14 +91,12 @@ public class RecordPage {
 	public static RecordPage create(Page page, int recordSize) {
 		RecordPage recordPage = new RecordPage(page);
 		recordPage.init(recordSize);
-		System.out.print(recordPage.dump());
 		return recordPage;
 	}
 
 	public static RecordPage open(Page page) {
 		RecordPage recordPage = new RecordPage(page);
 		recordPage.load();
-		System.out.print(recordPage.dump());
 		return recordPage;
 	}
 
@@ -107,7 +107,7 @@ public class RecordPage {
 	private void init(int recordSize) {
 		header.nextFreePage = Metadata.NO_FREE_PAGE;
 		header.recordSize = recordSize;
-		header.recordNum = 0;
+		header.numberOfRecords = 0;
 		
 		/*
 		 * Calculate bitset size:
@@ -156,7 +156,6 @@ public class RecordPage {
 		byte[] headerBytes = header.toByteArray();
 		System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 		byte[] bitsetBytes = bitset.toByteArray();
-		System.out.println("bitset bytes length: " + bitset.length());
 		System.arraycopy(bitsetBytes, 0, page.getData(), HEADER_SIZE, bitsetBytes.length);
 		for (int i = 0; i < header.capacity; i++) {
 			if (bitset.get(i)) {
@@ -219,25 +218,54 @@ public class RecordPage {
 		checkRecordBufferConsistency(insertedSlotNum);
 		bitset.set(insertedSlotNum);
 		records[insertedSlotNum] = new Record(Arrays.copyOf(data, data.length));
+		header.numberOfRecords++;
+		if (debug) {
+			System.out.print(dump());
+		}
 		return insertedSlotNum;
 	}
 	
 	public byte[] get(int slotNum) {
 		checkRecordExistence(slotNum);
 		byte[] data = records[slotNum].data; 
+		if (debug) {
+			System.out.print(dump());
+		}
 		return data;
 	}
 	
 	public void update(int slotNum, byte[] data) {
 		checkRecordExistence(slotNum);
 		records[slotNum].data = Arrays.copyOf(data, data.length);
+		if (debug) {
+			System.out.print(dump());
+		}
 	}
 	
 	public void delete(int slotNum) {
 		checkRecordExistence(slotNum);
 		bitset.set(slotNum, false);
 		records[slotNum] = null;
-		System.out.print(dump());
+		header.numberOfRecords--;
+		if (debug) {
+			System.out.print(dump());
+		}
+	}
+	
+	public boolean isEmpty() {
+		return header.numberOfRecords == 0;
+	}
+	
+	public boolean isFull() {
+		return header.numberOfRecords >= header.capacity;
+	}
+	
+	public int getNextFreePage() {
+		return header.nextFreePage;
+	}
+	
+	public void setNextFreePage(int pageNum) {
+		header.nextFreePage = pageNum;
 	}
 
 	public static short ab2s(byte[] ab) {
@@ -253,8 +281,17 @@ public class RecordPage {
 		return ab;
 	}
 
+	@Deprecated
 	public Page getPage() {
 		return page;
+	}
+	
+	public int getPageNum() {
+		return page.getNum();
+	}
+	
+	public void setDebug(boolean debug) {
+		this.debug = debug;
 	}
 	
 	public static class RecordIterator implements Iterator<byte[]> {

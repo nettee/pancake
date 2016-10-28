@@ -17,6 +17,7 @@ public class RecordFile {
 	private PagedFile file;
 	private Metadata metadata;
 	private Map<Integer, RecordPage> buffer;
+	private boolean debug;
 
 	private RecordFile(PagedFile file) throws IOException {
 		this.file = file;
@@ -84,7 +85,7 @@ public class RecordFile {
 	private RecordPage getFreeRecordPage() {
 		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
 			RecordPage recordPage = createRecordPage();
-			metadata.firstFreePage = recordPage.getPage().getNum();
+			metadata.firstFreePage = recordPage.getPageNum();
 			return recordPage;
 		} else {
 			return getRecordPage(metadata.firstFreePage);
@@ -96,7 +97,10 @@ public class RecordFile {
 		try {
 			Page page = file.allocatePage();
 			RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
-			buffer.put(recordPage.getPage().getNum(), recordPage);
+			if (debug) {
+				recordPage.setDebug(true);
+			}
+			buffer.put(recordPage.getPageNum(), recordPage);
 			return recordPage;
 		} catch (IOException e) {
 			throw new RecordFileException(e);
@@ -110,7 +114,7 @@ public class RecordFile {
 		try {
 			Page page = file.getPage(pageNum);
 			RecordPage recordPage = RecordPage.open(page);
-			buffer.put(recordPage.getPage().getNum(), recordPage);
+			buffer.put(recordPage.getPageNum(), recordPage);
 			return recordPage;
 		} catch (IOException e) {
 			throw new RecordFileException(e);
@@ -126,9 +130,12 @@ public class RecordFile {
 	 */
 	public RID insertRecord(byte[] data) {
 		RecordPage recordPage = getFreeRecordPage();
-		int insertedPageNum = recordPage.getPage().getNum();
+		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(data);
 		metadata.numOfRecords += 1;
+		if (recordPage.isFull()) {
+			metadata.firstFreePage = recordPage.getNextFreePage();
+		}
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
@@ -144,10 +151,13 @@ public class RecordFile {
 	}
 
 	public void deleteRecord(RID rid) {
-		// TODO add pageNum to firstFreePage
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.delete(rid.slotNum);
 		metadata.numOfRecords -= 1;
+		if (recordPage.isEmpty()) {
+			recordPage.setNextFreePage(metadata.firstFreePage);
+			metadata.firstFreePage = recordPage.getPageNum();
+		}
 	}
 
 	/**
@@ -216,6 +226,10 @@ public class RecordFile {
 			return record;
 		}
 
+	}
+	
+	public void setDebug(boolean debug) {
+		this.debug = debug;
 	}
 
 }
