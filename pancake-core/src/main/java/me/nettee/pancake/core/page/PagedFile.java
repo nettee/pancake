@@ -12,7 +12,7 @@ import org.apache.log4j.Logger;
 /**
  * Currently no buffer
  * 
- * @author william
+ * @author nettee
  *
  */
 public class PagedFile {

@@ -12,6 +12,18 @@ import org.apache.commons.lang3.NotImplementedException;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 
+/**
+ * The first page of record file serves as header page (which stores metadata),
+ * and the rest pages serves as data page (which stores records). Each data page
+ * also contains some header information. For metadata, see <tt>Metadata</tt>.
+ * For data page, see <tt>RecordPage</tt>.
+ * 
+ * @see Metadata
+ * @see RecordPage
+ * 
+ * @author nettee
+ *
+ */
 public class RecordFile {
 
 	private PagedFile file;
@@ -92,7 +104,7 @@ public class RecordFile {
 		}
 
 	}
-	
+
 	private RecordPage createRecordPage() {
 		try {
 			Page page = file.allocatePage();
@@ -139,12 +151,28 @@ public class RecordFile {
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
+	/**
+	 * Get the record data identified by <tt>rid</tt>.
+	 * 
+	 * @param rid
+	 *            record identification
+	 * @return record data
+	 */
 	public byte[] getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		byte[] record = recordPage.get(rid.slotNum);
 		return record;
 	}
 
+	/**
+	 * Update the record identified by <tt>rid</tt>. The existing contents of
+	 * the record will be replaced by <tt>data</tt>.
+	 * 
+	 * @param rid
+	 *            record identification
+	 * @param data
+	 *            replacement
+	 */
 	public void updateRecord(RID rid, byte[] data) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.update(rid.slotNum, data);
@@ -184,10 +212,10 @@ public class RecordFile {
 	private class RecordIterator implements Iterator<byte[]> {
 
 		private final Predicate<byte[]> pred;
-		
+
 		private RecordPage.RecordIterator[] rpis;
 		private int current_rpi;
-		
+
 		private byte[] nextRecord;
 
 		RecordIterator() {
@@ -205,7 +233,7 @@ public class RecordFile {
 			current_rpi = 0;
 			nextRecord = nextRecord();
 		}
-		
+
 		private byte[] nextRecord() {
 			while (!rpis[current_rpi].hasNext()) {
 				current_rpi++;
@@ -227,7 +255,7 @@ public class RecordFile {
 		}
 
 	}
-	
+
 	public void setDebug(boolean debug) {
 		this.debug = debug;
 	}

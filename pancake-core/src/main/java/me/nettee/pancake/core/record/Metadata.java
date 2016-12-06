@@ -24,11 +24,14 @@ public class Metadata {
 		try {
 			ByteArrayInputStream bais = new ByteArrayInputStream(src);
 			DataInputStream is = new DataInputStream(bais);
+			
+			// check magic string
 			byte[] magic0 = new byte[MAGIC.length()];
 			is.read(magic0);
 			if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
 				throw new RecordFileException("magic does not match");
 			}
+			
 			recordSize = is.readInt();
 			dataPageStartingNum = is.readInt();
 			numOfRecords = is.readInt();

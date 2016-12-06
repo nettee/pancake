@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Random;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
@@ -36,7 +35,6 @@ public class RecordFileCrudTest {
 	@SuppressWarnings("rawtypes")
 	@Parameters
 	public static Collection data() {
-		Random random = new Random();
 		Object[][] data = {
 				{1},
 				{RandomUtils.nextInt(2, CAPACITY)},
