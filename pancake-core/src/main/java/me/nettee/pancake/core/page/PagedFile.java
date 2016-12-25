@@ -7,9 +7,14 @@ import java.io.RandomAccessFile;
 import java.util.Random;
 import java.util.TreeMap;
 
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.log4j.Logger;
 
 /**
+ * Paged file is the bottom component of pancake-core. This component provides
+ * facilities for higher-level client components to perform file I/O in terms of
+ * pages.
+ * 
  * Currently no buffer
  * 
  * @author nettee
@@ -19,18 +24,31 @@ public class PagedFile {
 
 	private static Logger logger = Logger.getLogger(PagedFile.class);
 
-	private RandomAccessFile file;
-
 	public static final int BUFFER_SIZE = 4;
+
+	/*
+	 * Once a page is disposed, it's page number (the first 4 bytes) will be
+	 * changed to this value. Thus, disposed pages can be detected when the
+	 * paged file is reopened.
+	 */
+	private static final int DISPOSED_PAGE_NUM = -1;
+
+	private RandomAccessFile file;
+	private PageBuffer buffer2 = new PageBuffer();
+	private int nPages;
+
+	@Deprecated
 	private Page[] buffer = new Page[BUFFER_SIZE];
 	/**
 	 * Mapping from pageNum to bufSlot
 	 */
+	@Deprecated
 	private TreeMap<Integer, Integer> bufMap;
 
 	/**
 	 * number of pages
 	 */
+	@Deprecated
 	private int N;
 
 	private PagedFile(File file) {
@@ -45,6 +63,13 @@ public class PagedFile {
 		this.bufMap = new TreeMap<Integer, Integer>();
 	}
 
+	/**
+	 * Create a paged file. The file should not already exist.
+	 * 
+	 * @param file
+	 *            the file in OS
+	 * @return created paged file
+	 */
 	public static PagedFile create(File file) {
 		if (file == null) {
 			throw new NullPointerException();
@@ -57,6 +82,15 @@ public class PagedFile {
 		return pagedFile;
 	}
 
+	/**
+	 * Open a paged file. The file must already exist and have been created
+	 * using the <tt>create</tt> method.
+	 * 
+	 * @param file
+	 *            the file in OS
+	 * @return opened paged file
+	 * @throws IOException
+	 */
 	public static PagedFile open(File file) throws IOException {
 		if (file == null) {
 			throw new NullPointerException();
@@ -70,13 +104,17 @@ public class PagedFile {
 	}
 
 	private void initPages() {
-		N = 0;
+		nPages = 0;
 	}
 
 	private void loadPages() throws IOException {
 		N = (int) (file.length() / Page.PAGE_SIZE);
 	}
 
+	/**
+	 * Close the paged file. All of the pages are flushed from the buffer pool
+	 * to the disk before the file is closed.
+	 */
 	public void close() {
 		try {
 			file.close();
@@ -93,6 +131,7 @@ public class PagedFile {
 	 * @return
 	 * @throws IOException
 	 */
+	@Deprecated
 	private Page readPage(int num) throws IOException {
 		Page page = new Page(num);
 		file.seek(num * Page.PAGE_SIZE);
@@ -104,22 +143,7 @@ public class PagedFile {
 		return page;
 	}
 
-	/**
-	 * Write page object to file
-	 * 
-	 * @param page
-	 * @throws IOException
-	 */
-	private void writePage(Page page) throws IOException {
-		int num = page.num;
-		file.seek(num * Page.PAGE_SIZE);
-		file.writeInt(page.num);
-		file.write(page.data);
-		if (file.getFilePointer() != (num + 1) * Page.PAGE_SIZE) {
-			throw new AssertionError();
-		}
-	}
-
+	@Deprecated
 	private boolean emptyBuffer(int bufSlot) throws IOException {
 		Page page = buffer[bufSlot];
 		if (page == null) {
@@ -130,6 +154,7 @@ public class PagedFile {
 		return true;
 	}
 
+	@Deprecated
 	private boolean insertIntoBuffer(Page page) throws IOException {
 		Random random = new Random();
 		int i = random.nextInt(BUFFER_SIZE);
@@ -139,13 +164,59 @@ public class PagedFile {
 		return true;
 	}
 
-	public Page allocatePage() throws IOException {
-		Page page = new Page(N);
-		N++;
-		insertIntoBuffer(page);
+	/**
+	 * Allocate a new page in the file.
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
+	public Page allocatePage() {
+		int pageNum = nPages++;
+		Page page = new Page(pageNum);
+		try {
+			writePage(page);
+		} catch (PagedFileException e) {
+			String msg = String.format("fail to allocate page[%d]", pageNum);
+			throw new PageAllocationException(msg, e);
+		}
+		buffer2.pinNewPage(page);
+		logger.info(String.format("allocate page[%d]", pageNum));
 		return page;
 	}
 
+	/**
+	 * Remove the page specified by <tt>pageNum</tt>.
+	 * 
+	 * @param pageNum
+	 */
+	public void disposePage(int pageNum) {
+		try {
+			file.seek(pageNum * Page.PAGE_SIZE);
+			file.writeInt(DISPOSED_PAGE_NUM);
+		} catch (IOException e) {
+			String msg = String.format("fail to dispose page[%d]", pageNum);
+			throw new PageDisposalException(msg, e);
+		}
+		logger.info(String.format("dispose page[%d]", pageNum));
+	}
+
+	private void writePage(Page page) {
+		int startPointer = page.num * Page.PAGE_SIZE;
+		int endPointer = (page.num + 1) * Page.PAGE_SIZE;
+		String msg = String.format("fail to write page[%d]", page.num);
+		try {
+			file.seek(startPointer);
+			file.writeInt(page.num);
+			file.write(page.data);
+			if (file.getFilePointer() != endPointer) {
+				throw new PagedFileException(msg);
+			}
+		} catch (IOException e) {
+			throw new PagedFileException(msg);
+		}
+	}
+
+	@Deprecated
 	public int getNumOfPages() {
 		return N;
 	}

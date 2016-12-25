@@ -106,17 +106,13 @@ public class RecordFile {
 	}
 
 	private RecordPage createRecordPage() {
-		try {
-			Page page = file.allocatePage();
-			RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
-			if (debug) {
-				recordPage.setDebug(true);
-			}
-			buffer.put(recordPage.getPageNum(), recordPage);
-			return recordPage;
-		} catch (IOException e) {
-			throw new RecordFileException(e);
+		Page page = file.allocatePage();
+		RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
+		if (debug) {
+			recordPage.setDebug(true);
 		}
+		buffer.put(recordPage.getPageNum(), recordPage);
+		return recordPage;
 	}
 
 	private RecordPage getRecordPage(int pageNum) {

@@ -1,10 +1,11 @@
 package me.nettee.pancake.core.page;
 
-import static org.junit.Assert.assertEquals;
-
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -13,82 +14,68 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 public class PagedFileTest {
-	
-	private File file;
-	
+
+	private PagedFile pagedFile;
+
 	@BeforeClass
 	public static void setUpBeforeClass() throws IOException {
-		
+
 	}
-	
+
 	@Before
 	public void setUp() throws IOException {
-		file = new File("/tmp/a.db");
+		File file = new File("/tmp/a.db");
 		if (file.exists()) {
 			file.delete();
 		}
+		pagedFile = PagedFile.create(file);
 	}
-	
+
+	@After
+	public void tearDown() {
+		pagedFile.close();
+	}
+
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
-	
-	@After
-	public void tearDown() throws IOException {
-	}
-	
-	@Test
-	public void testCreate() {
-		PagedFile pagedFile = PagedFile.create(file);
-		pagedFile.close();
-	}
-	
-	@Test
-	public void testOpen() throws IOException {
-		PagedFile pagedFile = PagedFile.create(file);
-		pagedFile.close();
-		
-		pagedFile = PagedFile.open(file);
-		pagedFile.close();
-	}
-	
-	@Test
-	public void testCreateCreate() {
-		PagedFile pf = PagedFile.create(file);
-		pf.close();
-		
-		thrown.expect(PagedFileException.class);
-		PagedFile.create(file);
-	}
-	
-	@Test
-	public void testOpenWithoutCreate() throws IOException {
-		thrown.expect(PagedFileException.class);
-		PagedFile.open(file);
-	}
-	
-	@Test
-	public void testAllocatePage() throws IOException {
-		PagedFile pagedFile = PagedFile.create(file);
-		pagedFile.allocatePage();
-		pagedFile.close();
-	}
-	
-	@Test
-	public void testAllocatePage2() throws IOException {
-		PagedFile pagedFile = PagedFile.create(file);
-		for (int i = 0; i < 50; i++) {
+
+	private int allocatePages() {
+		int N = RandomUtils.nextInt(5, 20);
+		for (int i = 0; i < N; i++) {
 			pagedFile.allocatePage();
 		}
-		pagedFile.close();
+		return N;
+	}
+
+	private List<Integer> disposePages(int N) {
+		List<Integer> list = new ArrayList<>();
+		for (int i = 0; i < 3; i++) {
+			int d = RandomUtils.nextInt(i * N / 3, (i + 1) * N / 3);
+			pagedFile.disposePage(d);
+			list.add(d);
+		}
+		return list;
+	}
+
+	@Test
+	public void testAllocatePage() {
+		allocatePages();
+	}
+
+	@Test
+	public void testDisposePage() {
+		int N = allocatePages();
+		disposePages(N);
 	}
 	
 	@Test
-	public void testGetNumOfPages() throws IOException {
-		PagedFile pagedFile = PagedFile.create(file);
-		for (int i = 0; i < 50; i++) {
+	public void testReAllocatePage() {
+		int N = allocatePages();
+		List<Integer> list = disposePages(N);
+		// to be done
+		for (int n : list) {
 			pagedFile.allocatePage();
-			assertEquals(i+1, pagedFile.getNumOfPages());
 		}
-		pagedFile.close();
 	}
+
 }

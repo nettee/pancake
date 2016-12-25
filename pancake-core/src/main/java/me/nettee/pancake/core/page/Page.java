@@ -14,8 +14,8 @@ public class Page {
 	
 	Page(int num) {
 		this.num = num;
-		this.pinned = true;
-		this.dirty = true;
+		this.pinned = false;
+		this.dirty = false;
 		this.data = new byte[DATA_SIZE];
 		Arrays.fill(this.data, (byte) 0xee);
 	}
