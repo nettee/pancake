@@ -21,7 +21,7 @@ public class PagedFileManagerTest {
 	
 	@Before
 	public void setUp() throws IOException {
-		file = new File("/tmp/a.db");
+		file = new File("/tmp/b.db");
 		if (file.exists()) {
 			file.delete();
 		}
@@ -41,7 +41,7 @@ public class PagedFileManagerTest {
 	}
 	
 	@Test
-	public void testCreateCreate() {
+	public void testCreate_createTwice() {
 		PagedFile pf = PagedFile.create(file);
 		pf.close();
 		
@@ -59,7 +59,7 @@ public class PagedFileManagerTest {
 	}
 	
 	@Test
-	public void testOpenWithoutCreate() throws IOException {
+	public void testOpen_withoutCreate() throws IOException {
 		thrown.expect(Exception.class);
 		PagedFile.open(file);
 	}

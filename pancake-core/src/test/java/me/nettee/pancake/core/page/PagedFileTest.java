@@ -53,6 +53,7 @@ public class PagedFileTest {
 		Deque<Integer> disposedPageNums = new LinkedList<>();
 		for (int i = 0; i < 3; i++) {
 			int pageNum = RandomUtils.nextInt(i * N / 3, (i + 1) * N / 3);
+			pagedFile.unpinPage(pageNum);
 			pagedFile.disposePage(pageNum);
 			disposedPageNums.push(pageNum);
 		}
@@ -80,6 +81,23 @@ public class PagedFileTest {
 	}
 	
 	@Test
+	public void testDisposePage_notExist() {
+		int N = allocatePages();
+		thrown.expect(PagedFileException.class);
+		pagedFile.disposePage(N + 1);
+	}
+	
+	@Test
+	public void testDisposePage_disposeTwice() {
+		int N = allocatePages();
+		int pageNum = RandomUtils.nextInt(0, N);
+		pagedFile.unpinPage(pageNum);
+		pagedFile.disposePage(pageNum);
+		thrown.expect(PagedFileException.class);
+		pagedFile.disposePage(pageNum);
+	}
+	
+	@Test
 	public void testReAllocatePage() {
 		int N = allocatePages();
 		Deque<Integer> disposedPageNums = disposePages(N);
@@ -102,7 +120,8 @@ public class PagedFileTest {
 	@Test
 	public void testGetFirstPage_disposeFirstPage() {
 		allocatePages();
-		disposePages(0);
+		pagedFile.unpinPage(0);
+		pagedFile.disposePage(0);
 		Page firstPage = pagedFile.getFirstPage();
 		assertEquals(1, firstPage.num);
 	}
@@ -116,6 +135,7 @@ public class PagedFileTest {
 	@Test
 	public void testGetFirstPage_disposeToEmpty() {
 		Page page = pagedFile.allocatePage();
+		pagedFile.unpinPage(page.num);
 		pagedFile.disposePage(page.num);
 		thrown.expect(PagedFileException.class);
 		pagedFile.getFirstPage();
@@ -131,6 +151,7 @@ public class PagedFileTest {
 	@Test
 	public void testGetLastPage_disposeLastPage() {
 		int N = allocatePages();
+		pagedFile.unpinPage(N - 1);
 		pagedFile.disposePage(N - 1);
 		Page lastPage = pagedFile.getLastPage();
 		assertEquals(N - 2, lastPage.num);
@@ -145,6 +166,7 @@ public class PagedFileTest {
 	@Test
 	public void testGetLastPage_disposeToEmpty() {
 		Page page = pagedFile.allocatePage();
+		pagedFile.unpinPage(page.num);
 		pagedFile.disposePage(page.num);
 		thrown.expect(PagedFileException.class);
 		pagedFile.getLastPage();
@@ -162,6 +184,7 @@ public class PagedFileTest {
 	public void testGetPreviousPage_disposedPageGap() {
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(2, N);
+		pagedFile.unpinPage(pageNum - 1);
 		pagedFile.disposePage(pageNum - 1);
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
 		assertEquals(pageNum - 2, previousPage.num);
@@ -186,6 +209,7 @@ public class PagedFileTest {
 	public void testGetNextPage_disposedPageGap() {
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(0, N - 2);
+		pagedFile.unpinPage(pageNum + 1);
 		pagedFile.disposePage(pageNum + 1);
 		Page nextPage = pagedFile.getNextPage(pageNum);
 		assertEquals(pageNum + 2, nextPage.num);

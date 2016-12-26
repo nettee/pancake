@@ -9,10 +9,11 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Deque;
 import java.util.LinkedList;
-import java.util.TreeMap;
 import java.util.function.UnaryOperator;
 
 import org.apache.log4j.Logger;
+
+import com.google.common.base.Optional;
 
 /**
  * <b>Paged file</b> is the bottom component of pancake-core. This component
@@ -48,26 +49,12 @@ public class PagedFile {
 	private static final int DISPOSED_PAGE_NUM = -1;
 
 	private RandomAccessFile file;
-	private PageBuffer buffer2 = new PageBuffer();
+	private PageBuffer buffer = new PageBuffer();
 	private int nPages;
 	private Deque<Integer> disposedPageNums = new LinkedList<>();
 
 	private static final UnaryOperator<Integer> addOne = (x) -> x + 1;
 	private static final UnaryOperator<Integer> subOne = (x) -> x - 1;
-
-	@Deprecated
-	private Page[] buffer = new Page[BUFFER_SIZE];
-	/**
-	 * Mapping from pageNum to bufSlot
-	 */
-	@Deprecated
-	private TreeMap<Integer, Integer> bufMap;
-
-	/**
-	 * number of pages
-	 */
-	@Deprecated
-	private int N;
 
 	private PagedFile(File file) {
 		try {
@@ -75,10 +62,6 @@ public class PagedFile {
 		} catch (FileNotFoundException e) {
 			throw new PagedFileException(e);
 		}
-		if (file.length() % Page.PAGE_SIZE != 0) {
-			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
-		}
-		this.bufMap = new TreeMap<Integer, Integer>();
 	}
 
 	/**
@@ -105,11 +88,15 @@ public class PagedFile {
 	 * @return opened paged file
 	 * @throws IOException
 	 */
-	public static PagedFile open(File file) throws IOException {
+	public static PagedFile open(File file) {
 		checkNotNull(file);
 		checkArgument(file.exists(), "file does not exist: %s", file.getAbsolutePath());
 		PagedFile pagedFile = new PagedFile(file);
-		pagedFile.loadPages();
+		try {
+			pagedFile.loadPages();
+		} catch (IOException e) {
+			throw new PagedFileException(e);
+		}
 		return pagedFile;
 	}
 
@@ -118,7 +105,11 @@ public class PagedFile {
 	}
 
 	private void loadPages() throws IOException {
-		N = (int) (file.length() / Page.PAGE_SIZE);
+		if (file.length() % Page.PAGE_SIZE != 0) {
+			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
+		}
+		nPages = (int) (file.length() / Page.PAGE_SIZE);
+		// TODO get disposed pages
 	}
 
 	/**
@@ -151,9 +142,9 @@ public class PagedFile {
 			writePage(page);
 		} catch (PagedFileException e) {
 			String msg = String.format("fail to allocate page[%d]", pageNum);
-			throw new PageAllocationException(msg, e);
+			throw new PagedFileException(msg, e);
 		}
-		buffer2.pinNewPage(page);
+		buffer.pinNewPage(page);
 		logger.info(String.format("allocate page[%d]", pageNum));
 		return page;
 	}
@@ -164,12 +155,18 @@ public class PagedFile {
 	 * @param pageNum
 	 */
 	public void disposePage(int pageNum) {
+		getPage(pageNum); // XXX check whether this page exists
+		if (buffer.isPinned(pageNum)) {
+			String msg = String.format("fail to dispose unpinned page[%d]", pageNum);
+			throw new PagedFileException(msg);
+		}
+		
 		try {
 			file.seek(pageNum * Page.PAGE_SIZE);
 			file.writeInt(DISPOSED_PAGE_NUM);
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
-			throw new PageDisposalException(msg, e);
+			throw new PagedFileException(msg, e);
 		}
 		disposedPageNums.push(pageNum);
 		logger.info(String.format("dispose page[%d]", pageNum));
@@ -191,9 +188,8 @@ public class PagedFile {
 		}
 	}
 
-	@Deprecated
 	public int getNumOfPages() {
-		return N;
+		return nPages;
 	}
 
 	private void checkPageNumRange(int pageNum) {
@@ -214,10 +210,10 @@ public class PagedFile {
 		file.readInt();
 		file.read(page.data);
 		return page;
-
 	}
-
+	
 	public Page getPage(int pageNum) {
+		// FIXME read buffer first
 		checkPageNumRange(pageNum);
 		try {
 			if (isDisposed(pageNum)) {
@@ -266,6 +262,10 @@ public class PagedFile {
 	public Page getNextPage(int currentPageNum) {
 		return searchPage(currentPageNum + 1, nPages - 1, addOne, "no next page");
 	}
+	
+	public void unpinPage(int pageNum) {
+		buffer.unpin(pageNum);
+	}
 
 	/**
 	 * This method copies the contents of the page specified by <tt>pageNum</tt>
@@ -276,16 +276,19 @@ public class PagedFile {
 	 * @param pageNum
 	 * @throws IOException
 	 */
-	public void forcePage(int pageNum) throws IOException {
-		if (!bufMap.containsKey(pageNum)) {
-			// The page is not in the buffer pool
+	public void forcePage(int pageNum) {
+		Optional<Page> optional = buffer.getPage(pageNum);
+		if (!optional.isPresent()) {
 			return;
 		}
-		Page page = buffer[bufMap.get(pageNum)];
-		if (page == null) {
-			throw new AssertionError();
+		Page page = optional.get();
+		try {
+			file.seek(pageNum * Page.PAGE_SIZE);
+			file.writeInt(pageNum);
+			file.write(page.data);
+		} catch (IOException e) {
+			throw new PagedFileException(e);
 		}
-		writePage(page);
 	}
 
 	/**
@@ -298,7 +301,7 @@ public class PagedFile {
 	 * @throws IOException
 	 */
 	public void forceAllPages() throws IOException {
-		for (int i = 0; i < N; i++) {
+		for (int i = 0; i < nPages; i++) {
 			forcePage(i);
 		}
 	}
