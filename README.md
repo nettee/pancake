@@ -1,6 +1,8 @@
 # Pancake
 
-Pancake is my personal Relational-DBMS project. It is intended to envolve in the following three steps:
+Pancake is my personal Relational-DBMS project. It is inspired by _RedBase_ of Stanford [CS346](https://web.stanford.edu/class/cs346/2015/) course and can be considered as a Java implementation of RedBase.
+
+Pancake is intended to envolve in the following three steps:
 
 1. **single-threaded DBMS without transaction** (working)
   + paged file (working)
