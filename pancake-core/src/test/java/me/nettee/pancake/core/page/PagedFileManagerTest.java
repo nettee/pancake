@@ -45,7 +45,7 @@ public class PagedFileManagerTest {
 		PagedFile pf = PagedFile.create(file);
 		pf.close();
 		
-		thrown.expect(PagedFileException.class);
+		thrown.expect(Exception.class);
 		PagedFile.create(file);
 	}
 	
@@ -60,7 +60,7 @@ public class PagedFileManagerTest {
 	
 	@Test
 	public void testOpenWithoutCreate() throws IOException {
-		thrown.expect(PagedFileException.class);
+		thrown.expect(Exception.class);
 		PagedFile.open(file);
 	}
 	

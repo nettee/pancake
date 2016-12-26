@@ -1,21 +1,35 @@
 package me.nettee.pancake.core.page;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Random;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.log4j.Logger;
 
 /**
- * Paged file is the bottom component of pancake-core. This component provides
- * facilities for higher-level client components to perform file I/O in terms of
- * pages.
- * 
- * Currently no buffer
+ * <b>Paged file</b> is the bottom component of pancake-core. This component
+ * provides facilities for higher-level client components to perform file I/O in
+ * terms of pages.
+ * <p>
+ * <b>Page number</b> identifies a page in a paged file. Page numbers correspond
+ * to their location within the file on disk. When you initially create a file
+ * and allocate pages using {@linkplain PagedFile#allocatePage()
+ * allocatePage()}, page numbering will be sequential. However, once pages have
+ * been deleted, the numbers of newly allocated pages are not sequential. The
+ * paged file reallocates previously allocated pages using a LIFO (stack)
+ * algorithm -- that is it reallocates the most recently deleted (and not
+ * reallocated) page. A brand new page is never allocated if a previously
+ * allocated page is available.
+ * <p>
+ * Currently, no buffer implementation.
  * 
  * @author nettee
  *
@@ -36,6 +50,10 @@ public class PagedFile {
 	private RandomAccessFile file;
 	private PageBuffer buffer2 = new PageBuffer();
 	private int nPages;
+	private Deque<Integer> disposedPageNums = new LinkedList<>();
+
+	private static final UnaryOperator<Integer> addOne = (x) -> x + 1;
+	private static final UnaryOperator<Integer> subOne = (x) -> x - 1;
 
 	@Deprecated
 	private Page[] buffer = new Page[BUFFER_SIZE];
@@ -71,12 +89,8 @@ public class PagedFile {
 	 * @return created paged file
 	 */
 	public static PagedFile create(File file) {
-		if (file == null) {
-			throw new NullPointerException();
-		}
-		if (file.exists()) {
-			throw new PagedFileException("file already exists: " + file.getAbsolutePath());
-		}
+		checkNotNull(file);
+		checkArgument(!file.exists(), "file already exists: %s", file.getAbsolutePath());
 		PagedFile pagedFile = new PagedFile(file);
 		pagedFile.initPages();
 		return pagedFile;
@@ -92,12 +106,8 @@ public class PagedFile {
 	 * @throws IOException
 	 */
 	public static PagedFile open(File file) throws IOException {
-		if (file == null) {
-			throw new NullPointerException();
-		}
-		if (!file.exists()) {
-			throw new PagedFileException("file does not exist: " + file.getAbsolutePath());
-		}
+		checkNotNull(file);
+		checkArgument(file.exists(), "file does not exist: %s", file.getAbsolutePath());
 		PagedFile pagedFile = new PagedFile(file);
 		pagedFile.loadPages();
 		return pagedFile;
@@ -124,54 +134,18 @@ public class PagedFile {
 	}
 
 	/**
-	 * Read page object from file.
-	 * 
-	 * @param num
-	 *            page number
-	 * @return
-	 * @throws IOException
-	 */
-	@Deprecated
-	private Page readPage(int num) throws IOException {
-		Page page = new Page(num);
-		file.seek(num * Page.PAGE_SIZE);
-		int pageNum = file.readInt();
-		if (pageNum != num) {
-			throw new AssertionError();
-		}
-		file.read(page.data);
-		return page;
-	}
-
-	@Deprecated
-	private boolean emptyBuffer(int bufSlot) throws IOException {
-		Page page = buffer[bufSlot];
-		if (page == null) {
-			return false;
-		}
-		writePage(page);
-		bufMap.remove(page.num);
-		return true;
-	}
-
-	@Deprecated
-	private boolean insertIntoBuffer(Page page) throws IOException {
-		Random random = new Random();
-		int i = random.nextInt(BUFFER_SIZE);
-		emptyBuffer(i);
-		buffer[i] = page;
-		bufMap.put(page.num, i);
-		return true;
-	}
-
-	/**
 	 * Allocate a new page in the file.
 	 * 
 	 * @return
 	 * @throws IOException
 	 */
 	public Page allocatePage() {
-		int pageNum = nPages++;
+		int pageNum;
+		if (disposedPageNums.isEmpty()) {
+			pageNum = nPages++;
+		} else {
+			pageNum = disposedPageNums.pop();
+		}
 		Page page = new Page(pageNum);
 		try {
 			writePage(page);
@@ -197,6 +171,7 @@ public class PagedFile {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
 			throw new PageDisposalException(msg, e);
 		}
+		disposedPageNums.push(pageNum);
 		logger.info(String.format("dispose page[%d]", pageNum));
 	}
 
@@ -221,23 +196,75 @@ public class PagedFile {
 		return N;
 	}
 
-	public Page getPage(int pageNum) throws IOException {
-
-		if (pageNum >= N) {
-			throw new PagedFileException("page index out of bound");
+	private void checkPageNumRange(int pageNum) {
+		if (pageNum >= nPages) {
+			throw new PagedFileException("page index out of bound: " + pageNum);
 		}
-
-		if (!bufMap.containsKey(pageNum)) {
-			// page not in buffer
-			Page page = readPage(pageNum);
-			insertIntoBuffer(page);
-		}
-
-		return buffer[bufMap.get(pageNum)];
 	}
 
-	public Page getFirstPage() throws IOException {
-		return getPage(0);
+	private boolean isDisposed(int pageNum) throws IOException {
+		file.seek(pageNum * Page.PAGE_SIZE);
+		int actualNum = file.readInt();
+		return actualNum == DISPOSED_PAGE_NUM;
+	}
+
+	private Page readPage(int pageNum) throws IOException {
+		Page page = new Page(pageNum);
+		file.seek(pageNum * Page.PAGE_SIZE);
+		file.readInt();
+		file.read(page.data);
+		return page;
+
+	}
+
+	public Page getPage(int pageNum) {
+		checkPageNumRange(pageNum);
+		try {
+			if (isDisposed(pageNum)) {
+				String msg = String.format("page[%d] is disposed", pageNum);
+				throw new PagedFileException(msg);
+			}
+			return readPage(pageNum);
+		} catch (IOException e) {
+			throw new PagedFileException(e);
+		}
+	}
+
+	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
+		int pageNum = startPageNum;
+		try {
+			// this loop search all pages except endPage
+			while (pageNum != endPageNum) {
+				if (!isDisposed(pageNum)) {
+					return readPage(pageNum);
+				}
+				pageNum = next.apply(pageNum);
+			}
+			// examine endPage
+			if (!isDisposed(endPageNum)) {
+				return readPage(pageNum);
+			}
+			// no page matches
+			throw new PagedFileException(messageOnFail);
+		} catch (IOException e) {
+			throw new PagedFileException(e);
+		}
+	}
+
+	public Page getFirstPage() {
+		return searchPage(0, nPages - 1, addOne, "no page in the file");
+	}
+
+	public Page getLastPage() {
+		return searchPage(nPages - 1, 0, subOne, "no page in the file");
+	}
+
+	public Page getPreviousPage(int currentPageNum) {
+		return searchPage(currentPageNum - 1, 0, subOne, "no previous page");
+	}
+
+	public Page getNextPage(int currentPageNum) {
+		return searchPage(currentPageNum + 1, nPages - 1, addOne, "no next page");
 	}
 
 	/**

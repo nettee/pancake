@@ -119,14 +119,10 @@ public class RecordFile {
 		if (buffer.containsKey(pageNum)) {
 			return buffer.get(pageNum);
 		}
-		try {
-			Page page = file.getPage(pageNum);
-			RecordPage recordPage = RecordPage.open(page);
-			buffer.put(recordPage.getPageNum(), recordPage);
-			return recordPage;
-		} catch (IOException e) {
-			throw new RecordFileException(e);
-		}
+		Page page = file.getPage(pageNum);
+		RecordPage recordPage = RecordPage.open(page);
+		buffer.put(recordPage.getPageNum(), recordPage);
+		return recordPage;
 	}
 
 	/**
