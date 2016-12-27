@@ -57,6 +57,7 @@ public class RecordFile {
 				throw new RecordFileException("created paged file is not empty");
 			}
 			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
 			recordFile.metadata.write(page.getData());
 			return recordFile;
 		} catch (IOException e) {

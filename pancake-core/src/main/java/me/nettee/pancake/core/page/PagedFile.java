@@ -295,12 +295,20 @@ public class PagedFile {
 			page.dirty = true;
 		}
 	}
+	
+	public void markDirty(Page page) {
+		markDirty(page.num);
+	}
 
 	public void unpinPage(int pageNum) {
 		if (buffer.containsKey(pageNum)) {
 			Page page = buffer.get(pageNum);
 			page.pinned = false;
 		}
+	}
+	
+	public void unpinPage(Page page) {
+		unpinPage(page.num);
 	}
 
 	/**
