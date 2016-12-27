@@ -206,7 +206,12 @@ public class RecordPage {
 		}
 	}
 
-	public int insert(byte[] data) {
+	/**
+	 * Insert record.
+	 * @param data record
+	 * @return slot number of inserted record
+	 */
+	int insert(byte[] data) {
 		int insertedSlotNum = 0;
 		// find free slot
 		while (bitset.get(insertedSlotNum) == true) {
@@ -225,7 +230,12 @@ public class RecordPage {
 		return insertedSlotNum;
 	}
 	
-	public byte[] get(int slotNum) {
+	/**
+	 * Get record.
+	 * @param slotNum slot number
+	 * @return record
+	 */
+	byte[] get(int slotNum) {
 		checkRecordExistence(slotNum);
 		byte[] data = records[slotNum].data; 
 		if (debug) {
@@ -234,7 +244,12 @@ public class RecordPage {
 		return data;
 	}
 	
-	public void update(int slotNum, byte[] data) {
+	/**
+	 * Update record.
+	 * @param slotNum slot number
+	 * @param replacement record
+	 */
+	void update(int slotNum, byte[] data) {
 		checkRecordExistence(slotNum);
 		records[slotNum].data = Arrays.copyOf(data, data.length);
 		if (debug) {
@@ -242,7 +257,11 @@ public class RecordPage {
 		}
 	}
 	
-	public void delete(int slotNum) {
+	/**
+	 * Delete record.
+	 * @param slotNum slot number
+	 */
+	void delete(int slotNum) {
 		checkRecordExistence(slotNum);
 		bitset.set(slotNum, false);
 		records[slotNum] = null;
@@ -294,24 +313,33 @@ public class RecordPage {
 		this.debug = debug;
 	}
 	
-	public static class RecordIterator implements Iterator<byte[]> {
+	Iterator<byte[]> scan(Predicate<byte[]> pred) {
+		return new RecordIterator(pred);
+	}
+	
+	public class RecordIterator implements Iterator<byte[]> {
 		
-		private final Predicate<byte[]> pred;
+		private final Predicate<byte[]> predicate;
+		
+		private int currentSlotNum;
 
-		public RecordIterator(Predicate<byte[]> pred) {
-			this.pred = pred;
+		public RecordIterator(Predicate<byte[]> predicate) {
+			this.predicate = predicate;
+			currentSlotNum = 0;
 		}
 
 		@Override
 		public boolean hasNext() {
-			// TODO Auto-generated method stub
-			return false;
+			// TODO take predicate into consideration
+			// FIXME consider deleted records
+			return currentSlotNum < header.numberOfRecords;
 		}
 
 		@Override
 		public byte[] next() {
-			// TODO Auto-generated method stub
-			return null;
+			// TODO take predicate into consideration
+			// FIXME consider deleted records
+			return get(currentSlotNum++);
 		}
 		
 	}

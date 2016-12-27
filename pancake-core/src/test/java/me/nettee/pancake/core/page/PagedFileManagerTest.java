@@ -27,13 +27,13 @@ public class PagedFileManagerTest {
 		}
 	}
 	
-	@Rule
-	public ExpectedException thrown = ExpectedException.none();
-	
 	@After
 	public void tearDown() throws IOException {
 	}
 	
+	@Rule
+	public ExpectedException thrown = ExpectedException.none();
+
 	@Test
 	public void testCreate() {
 		PagedFile pagedFile = PagedFile.create(file);
