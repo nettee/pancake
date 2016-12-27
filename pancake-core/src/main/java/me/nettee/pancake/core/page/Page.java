@@ -8,6 +8,8 @@ public class Page {
 	public static final int DATA_SIZE = 4092;
 
 	int num;
+	boolean pinned = true;
+	boolean dirty = false;
 	byte[] data;
 	
 	Page(int num) {

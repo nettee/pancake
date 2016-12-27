@@ -75,9 +75,16 @@ public class PagedFileTest {
 		Iterable<Integer> disposedPageNums = disposePages(N);
 		for (int pageNum : disposedPageNums) {
 			thrown.expect(PagedFileException.class);
-			thrown.expectMessage("disposed");
 			pagedFile.getPage(pageNum);
 		}
+	}
+	
+	@Test
+	public void testDisposePage_unpinnedPage() {
+		int N = allocatePages();
+		int pageNum = RandomUtils.nextInt(0, N);
+		thrown.expect(PagedFileException.class);
+		pagedFile.disposePage(pageNum);
 	}
 	
 	@Test

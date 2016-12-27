@@ -1,25 +1,12 @@
 package me.nettee.pancake.core.record;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.function.Predicate;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
-
-import me.nettee.pancake.core.page.Page;
 
 public class RecordFileTest {
 

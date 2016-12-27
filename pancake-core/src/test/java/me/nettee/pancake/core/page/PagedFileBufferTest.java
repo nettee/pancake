@@ -45,35 +45,34 @@ public class PagedFileBufferTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	@Test
-	public void testForcePage() {
-		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		{
-			Page page = pagedFile.allocatePage();
-			byte[] strBytes = str.getBytes(StandardCharsets.US_ASCII);
-			System.arraycopy(strBytes, 0, page.data, 0, strBytes.length);
-			pagedFile.forcePage(page.num);
-		}
-		reOpen();
-		{
-			Page page = pagedFile.getFirstPage();
-			byte[] strBytes = Arrays.copyOf(page.data, str.length());
-			String str2 = new String(strBytes, StandardCharsets.US_ASCII);
-			assertEquals(str, str2);
-		}
-	}
-	
 	private void putStringData(Page page, String data) {
 		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
 		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
 	}
-	
+
 	private String getStringData(Page page, int length) {
 		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
 		String str = new String(bytes, StandardCharsets.US_ASCII);
 		return str;
 	}
-	
+
+	@Test
+	public void testForcePage() {
+		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page.num);
+			putStringData(page, str);
+			pagedFile.forcePage(page.num);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str2 = getStringData(page, str.length());
+			assertEquals(str, str2);
+		}
+	}
+
 	@Test
 	public void testForcePage_noForce() {
 		String str1 = "ABCDEFG-HIJKLMN-OPQRST-UVWXYZ";
@@ -84,6 +83,7 @@ public class PagedFileBufferTest {
 		reOpen();
 		{
 			Page page = pagedFile.getFirstPage();
+			pagedFile.markDirty(page.num);
 			putStringData(page, str1);
 			pagedFile.forcePage(page.num);
 		}
@@ -96,8 +96,8 @@ public class PagedFileBufferTest {
 		reOpen();
 		{
 			Page page = pagedFile.getFirstPage();
-			String str3 = getStringData(page, str1.length());
-			assertEquals(str1, str3);
+			String str = getStringData(page, str1.length());
+			assertEquals(str1, str);
 		}
 	}
 
