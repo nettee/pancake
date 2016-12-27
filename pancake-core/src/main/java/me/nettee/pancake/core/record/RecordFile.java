@@ -82,16 +82,12 @@ public class RecordFile {
 	}
 
 	public void close() {
-		try {
-			for (RecordPage recordPage : buffer.values()) {
-				recordPage.persist();
-			}
-			buffer.clear();
-			file.forceAllPages();
-			file.close();
-		} catch (IOException e) {
-			throw new RecordFileException(e);
+		for (RecordPage recordPage : buffer.values()) {
+			recordPage.persist();
 		}
+		buffer.clear();
+		file.forceAllPages();
+		file.close();
 	}
 
 	private RecordPage getFreeRecordPage() {

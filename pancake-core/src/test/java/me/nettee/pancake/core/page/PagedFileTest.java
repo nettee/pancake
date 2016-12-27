@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -40,6 +42,37 @@ public class PagedFileTest {
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
+	
+	public static int allocatePages(PagedFile pagedFile) {
+		int N = RandomUtils.nextInt(5, 20);
+		for (int __ = 0; __ < N; __++) {
+			pagedFile.allocatePage();
+		}
+		return N;
+	}
+	
+	public static Deque<Integer> disposePages(PagedFile pagedFile, int N) {
+		Deque<Integer> disposedPageNums = new LinkedList<>();
+		for (int i = 0; i < 3; i++) {
+			int pageNum = RandomUtils.nextInt(i * N / 3, (i + 1) * N / 3);
+			pagedFile.unpinPage(pageNum);
+			pagedFile.disposePage(pageNum);
+			disposedPageNums.push(pageNum);
+		}
+		return disposedPageNums;
+	}
+	
+	public static void putStringData(Page page, String data) {
+		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
+		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
+	}
+
+	public static String getStringData(Page page, int length) {
+		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
+		String str = new String(bytes, StandardCharsets.US_ASCII);
+		return str;
+	}
+
 
 	private int allocatePages() {
 		int N = RandomUtils.nextInt(5, 20);
@@ -114,6 +147,16 @@ public class PagedFileTest {
 			assertEquals(expectedPageNum, page.num);
 			Page page2 = pagedFile.getPage(expectedPageNum);
 			assertEquals(expectedPageNum, page2.num);
+		}
+	}
+	
+	@Test
+	public void testGetPage_disposed() {
+		int N = allocatePages(pagedFile);
+		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
+		for (int pageNum : disposedPageNums) {
+			thrown.expect(PagedFileException.class);
+			pagedFile.getPage(pageNum);
 		}
 	}
 	

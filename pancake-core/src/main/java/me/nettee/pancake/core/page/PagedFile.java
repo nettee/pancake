@@ -112,6 +112,13 @@ public class PagedFile {
 		}
 		N = (int) (file.length() / Page.PAGE_SIZE);
 		// TODO get disposed pages
+		for (int pageNum = N - 1; pageNum >= 0; pageNum--) {
+			file.seek(pageNum * Page.PAGE_SIZE);
+			int actualNum = file.readInt();
+			if (actualNum == DISPOSED_PAGE_NUM) {
+				disposedPageNums.push(pageNum);
+			}
+		}
 	}
 
 	/**
@@ -331,7 +338,7 @@ public class PagedFile {
 	 * @see forcePage
 	 * @throws IOException
 	 */
-	public void forceAllPages() throws IOException {
+	public void forceAllPages() {
 		for (int i = 0; i < N; i++) {
 			forcePage(i);
 		}
