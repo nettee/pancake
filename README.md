@@ -1,5 +1,9 @@
 # Pancake
 
+![travis-ci status](https://travis-ci.org/nettee/pancake.svg?branch=master)
+
+## Overview
+
 Pancake 是一个关系型数据库，它的实现受到了斯坦福 [CS346][cs346] 课程中 _RedBase_ 的启发，可以看作是 RedBase 的 Java 实现版。
 
 Pancake is my personal Relational-DBMS project. It is inspired by _RedBase_ of Stanford [CS346][cs346] course and can be considered as a Java implementation of RedBase.
