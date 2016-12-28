@@ -1,6 +1,7 @@
 # Pancake
 
 [![Build Status](https://travis-ci.org/nettee/pancake.svg?branch=master)](https://travis-ci.org/nettee/pancake)
+[![codecov](https://codecov.io/gh/nettee/pancake/branch/master/graph/badge.svg)](https://codecov.io/gh/nettee/pancake)
 [![Open Source Love](https://badges.frapsoft.com/os/gpl/gpl.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
 
 ## Overview
