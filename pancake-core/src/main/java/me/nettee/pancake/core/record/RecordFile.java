@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
+import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -139,7 +140,7 @@ public class RecordFile {
 		if (recordPage.isFull()) {
 			metadata.firstFreePage = recordPage.getNextFreePage();
 		}
-		logger.info("inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
+		logger.debug("inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
 				new String(data, StandardCharsets.US_ASCII));
 		return new RID(insertedPageNum, insertedSlotNum);
 	}

@@ -188,7 +188,7 @@ public class PagedFile {
 			throw new PagedFileException(msg, e);
 		}
 		buffer.put(page.num, page);
-		logger.info(String.format("allocate page[%d]", pageNum));
+		logger.debug(String.format("allocate page[%d]", pageNum));
 		return page;
 	}
 
@@ -221,7 +221,7 @@ public class PagedFile {
 			throw new PagedFileException(msg, e);
 		}
 		disposedPageNums.push(pageNum);
-		logger.info(String.format("dispose page[%d]", pageNum));
+		logger.debug(String.format("dispose page[%d]", pageNum));
 	}
 
 	/*
