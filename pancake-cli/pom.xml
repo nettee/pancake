@@ -9,7 +9,7 @@
 
 	<name>pancake-cli</name>
 	<url>http://maven.apache.org</url>
-	<description>Pancake command line</description>
+	<description>Pancake command-line interface</description>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

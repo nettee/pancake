@@ -9,6 +9,7 @@
 
 	<name>pancake-core</name>
 	<url>http://github.com/nettee/pancake</url>
+    <description>Pancake core</description>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
