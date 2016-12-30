@@ -2,13 +2,16 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>me.nettee.pancake</groupId>
+    <parent>
+        <groupId>me.nettee.pancake</groupId>
+        <artifactId>pancake</artifactId>
+        <version>0.1-SNAPSHOT</version>
+    </parent>
+
 	<artifactId>pancake-cli</artifactId>
-	<version>0.0.2-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>pancake-cli</name>
-	<url>http://maven.apache.org</url>
 	<description>Pancake command-line interface</description>
 
 	<properties>
