@@ -69,12 +69,6 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>me.nettee.pancake</groupId>
-			<artifactId>pancake-core</artifactId>
-			<version>0.0.2-SNAPSHOT</version>
-		</dependency>
-
-		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.11</version>
