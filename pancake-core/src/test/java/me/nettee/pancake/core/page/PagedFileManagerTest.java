@@ -36,12 +36,14 @@ public class PagedFileManagerTest {
 
 	@Test
 	public void testCreate() {
+		// A paged file can be created.
 		PagedFile pagedFile = PagedFile.create(file);
 		pagedFile.close();
 	}
 	
 	@Test
 	public void testCreate_createTwice() {
+		// A paged file cannot be created more than once.
 		PagedFile pf = PagedFile.create(file);
 		pf.close();
 		
@@ -51,6 +53,7 @@ public class PagedFileManagerTest {
 	
 	@Test
 	public void testOpen() throws IOException {
+		// A paged file can be opened when it is already created.
 		PagedFile pagedFile = PagedFile.create(file);
 		pagedFile.close();
 		
@@ -60,6 +63,7 @@ public class PagedFileManagerTest {
 	
 	@Test
 	public void testOpen_withoutCreate() throws IOException {
+		// A paged file cannot be opened without being created.
 		thrown.expect(Exception.class);
 		PagedFile.open(file);
 	}

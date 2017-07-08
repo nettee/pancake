@@ -70,22 +70,7 @@ public class PagedFileTest {
 
 
 	private int allocatePages() {
-		int N = RandomUtils.nextInt(5, 20);
-		for (int i = 0; i < N; i++) {
-			pagedFile.allocatePage();
-		}
-		return N;
-	}
-
-	private Deque<Integer> disposePages(int N) {
-		Deque<Integer> disposedPageNums = new LinkedList<>();
-		for (int i = 0; i < 3; i++) {
-			int pageNum = RandomUtils.nextInt(i * N / 3, (i + 1) * N / 3);
-			pagedFile.unpinPage(pageNum);
-			pagedFile.disposePage(pageNum);
-			disposedPageNums.push(pageNum);
-		}
-		return disposedPageNums;
+	    return allocatePages(pagedFile);
 	}
 
 	@Test
@@ -104,7 +89,7 @@ public class PagedFileTest {
 		// The page numbers of disposed pages must not exist
 		// (until assigned to newly allocated pages).
 		int N = allocatePages();
-		Iterable<Integer> disposedPageNums = disposePages(N);
+		Iterable<Integer> disposedPageNums = disposePages(pagedFile, N);
 		for (int pageNum : disposedPageNums) {
 			thrown.expect(PagedFileException.class);
 			pagedFile.getPage(pageNum);
@@ -141,8 +126,10 @@ public class PagedFileTest {
 	
 	@Test
 	public void testReAllocatePage() {
+		// If a page is just disposed, the newly allocated page must have
+		// the same number as the disposed page.
 		int N = allocatePages();
-		Deque<Integer> disposedPageNums = disposePages(N);
+		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
 		while (!disposedPageNums.isEmpty()) {
 			int expectedPageNum = disposedPageNums.pop();
 			Page page = pagedFile.allocatePage();
@@ -154,6 +141,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetPage_disposed() {
+		// Getting the disposed page will cause an exception to throw.
 		int N = allocatePages(pagedFile);
 		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
 		for (int pageNum : disposedPageNums) {
@@ -164,6 +152,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetFirstPage() {
+		// The number of the first page is zero.
 		allocatePages();
 		Page firstPage = pagedFile.getFirstPage();
 		assertEquals(0, firstPage.num);
@@ -171,6 +160,8 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetFirstPage_disposeFirstPage() {
+		// When getting the first page, disposed pages are omitted.
+		// When page[0] is disposed, the first page becomes page[1].
 		allocatePages();
 		pagedFile.unpinPage(0);
 		pagedFile.disposePage(0);
@@ -180,12 +171,14 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetFirstPage_emptyPagedFile() {
+		// When there are no pages, getting the first page will cause an exception.
 		thrown.expect(PagedFileException.class);
 		pagedFile.getFirstPage();
 	}
 	
 	@Test
 	public void testGetFirstPage_disposeToEmpty() {
+		// When all the pages are disposed, getting the first page will cause an exception.
 		Page page = pagedFile.allocatePage();
 		pagedFile.unpinPage(page.num);
 		pagedFile.disposePage(page.num);
@@ -195,6 +188,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetLastPage() {
+		// The number of the last page is N-1.
 		int N = allocatePages();
 		Page lastPage = pagedFile.getLastPage();
 		assertEquals(N - 1, lastPage.num);
@@ -202,6 +196,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetLastPage_disposeLastPage() {
+		// When page[N-1] is disposed, the last page becomes page[N-2].
 		int N = allocatePages();
 		pagedFile.unpinPage(N - 1);
 		pagedFile.disposePage(N - 1);
@@ -211,12 +206,14 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetLastPage_emptyPagedFile() {
+		// When there are no pages, getting the last page will cause an exception.
 		thrown.expect(PagedFileException.class);
 		pagedFile.getLastPage();
 	}
 	
 	@Test
 	public void testGetLastPage_disposeToEmpty() {
+		// When all the pages are disposed, getting the last page will cause an exception.
 		Page page = pagedFile.allocatePage();
 		pagedFile.unpinPage(page.num);
 		pagedFile.disposePage(page.num);
@@ -226,6 +223,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetPreviousPage() {
+		// The number of the previous page must be one less than that of the current one.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(1, N);
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
@@ -234,6 +232,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetPreviousPage_disposedPageGap() {
+		// When finding the previous page, disposed pages are skipped.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(2, N);
 		pagedFile.unpinPage(pageNum - 1);
@@ -244,6 +243,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetPreviousPage_noPrevious() {
+		// Page[0] has no previous page, and getting the previous will cause an exception.
 		allocatePages();
 		thrown.expect(PagedFileException.class);
 		pagedFile.getPreviousPage(0);
@@ -251,6 +251,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetNextPage() {
+		// The number of the next page must be one larger than that of the current one.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(0, N - 1);
 		Page nextPage = pagedFile.getNextPage(pageNum);
@@ -259,6 +260,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetNextPage_disposedPageGap() {
+		// When finding the next page, disposed pages are skipped.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(0, N - 2);
 		pagedFile.unpinPage(pageNum + 1);
@@ -269,6 +271,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testGetNextPage_noNext() {
+		// Page[N-1] has no next page, and getting the next will cause an exception.
 		int N = allocatePages();
 		thrown.expect(PagedFileException.class);
 		pagedFile.getNextPage(N - 1);
