@@ -6,5 +6,9 @@ target/
 .classpath
 .settings/
 
+# Intellij idea files
+.idea
+*.iml
+
 # log files
 *.log
