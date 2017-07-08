@@ -7,10 +7,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.UnaryOperator;
 
 import org.slf4j.Logger;
@@ -40,18 +37,13 @@ public class PagedFile {
 
 	private static Logger logger = LoggerFactory.getLogger(PagedFile.class);
 
-	public static final int BUFFER_SIZE = 4;
-
-	/*
-	 * Once a page is disposed, it's page number (the first 4 bytes) will be
-	 * changed to this value. Thus, disposed pages can be detected when the
-	 * paged file is reopened.
-	 */
-	private static final int DISPOSED_PAGE_NUM = -1;
+	// TODO limit buffer size
+	private static final int BUFFER_SIZE = 4;
 
 	private RandomAccessFile file;
 	private int N;
-	private Deque<Integer> disposedPageNums = new LinkedList<>();
+//	private Map<Integer, Integer> disposedPageIndexes = new HashMap<>();
+	private Deque<Integer> disposedPageNumsStack = new LinkedList<>();
 
 	private Map<Integer, Page> buffer = new TreeMap<>();
 
@@ -111,12 +103,24 @@ public class PagedFile {
 			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
 		}
 		N = (int) (file.length() / Page.PAGE_SIZE);
-		// TODO get disposed pages
-		for (int pageNum = N - 1; pageNum >= 0; pageNum--) {
+
+		// Collect disposed pages and push their nums orderly into the stack.
+		int[] disposedPageNums = new int[N+1];
+		for (int __ = 0; __ <= N; __++) {
+			disposedPageNums[__] = -1;
+		}
+		for (int pageNum = 0; pageNum < N; pageNum++) {
 			file.seek(pageNum * Page.PAGE_SIZE);
 			int actualNum = file.readInt();
-			if (actualNum == DISPOSED_PAGE_NUM) {
-				disposedPageNums.push(pageNum);
+			if (actualNum < 0) {
+				// A disposed page has its page number less than zero.
+                int disposedOrder = -actualNum;
+                disposedPageNums[disposedOrder] = pageNum;
+			}
+		}
+		for (int pageNum : disposedPageNums) {
+			if (pageNum >= 0) {
+				disposedPageNumsStack.push(pageNum);
 			}
 		}
 	}
@@ -137,6 +141,7 @@ public class PagedFile {
 		return N;
 	}
 
+	// TODO Check if this page is disposed, more than just check page index range.
 	private void checkPageNumRange(int pageNum) {
 		if (pageNum >= N) {
 			throw new PagedFileException("page index out of bound: " + pageNum);
@@ -144,7 +149,7 @@ public class PagedFile {
 	}
 
 	private boolean isDisposed(int pageNum) {
-		return disposedPageNums.contains(pageNum);
+		return disposedPageNumsStack.contains(pageNum);
 	}
 
 	private Page readPageFromFile(int pageNum) throws IOException {
@@ -158,10 +163,10 @@ public class PagedFile {
 	private void writePageToFile(Page page) throws IOException {
 		int startPointer = page.num * Page.PAGE_SIZE;
 		int endPointer = (page.num + 1) * Page.PAGE_SIZE;
-		String msg = String.format("fail to write page[%d]", page.num);
 		file.seek(startPointer);
 		file.writeInt(page.num);
 		file.write(page.data);
+		String msg = String.format("fail to write page[%d]", page.num);
 		if (file.getFilePointer() != endPointer) {
 			throw new PagedFileException(msg);
 		}
@@ -171,14 +176,14 @@ public class PagedFile {
 	 * Allocate a new page in the file.
 	 * 
 	 * @return
-	 * @throws IOException
+	 * @throws PagedFileException When it fails to write the file.
 	 */
 	public Page allocatePage() {
 		int pageNum;
-		if (disposedPageNums.isEmpty()) {
+		if (disposedPageNumsStack.isEmpty()) {
 			pageNum = N++;
 		} else {
-			pageNum = disposedPageNums.pop();
+			pageNum = disposedPageNumsStack.pop();
 		}
 		Page page = new Page(pageNum);
 		try {
@@ -194,12 +199,16 @@ public class PagedFile {
 
 	/**
 	 * Remove the page specified by <tt>pageNum</tt>.
+     * A page must be unpinned before disposed.
 	 * 
-	 * @param pageNum
+	 * @param pageNum the number of the page to dispose
+     * @throws PagedFileException When the page number is not exist,
+	 * when the page is not unpinned,
+	 * or when it fails to write the file.
 	 */
 	public void disposePage(int pageNum) {
 		checkPageNumRange(pageNum);
-		if (disposedPageNums.contains(pageNum)) {
+		if (disposedPageNumsStack.contains(pageNum)) {
 			// page already disposed
 			String msg = String.format("page[%d] already disposed", pageNum);
 			throw new PagedFileException(msg);
@@ -208,19 +217,19 @@ public class PagedFile {
 			// page in buffer
 			Page page = buffer.get(pageNum);
 			if (page.pinned) {
-				String msg = String.format("fail to dispose unpinned page[%d]", pageNum);
+				String msg = String.format("fail to dispose pinned page[%d]", pageNum);
 				throw new PagedFileException(msg);
 			}
 		}
 		// TODO fill the page with default byte
 		try {
 			file.seek(pageNum * Page.PAGE_SIZE);
-			file.writeInt(DISPOSED_PAGE_NUM);
+			file.writeInt(-1 - disposedPageNumsStack.size());
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
 			throw new PagedFileException(msg, e);
 		}
-		disposedPageNums.push(pageNum);
+		disposedPageNumsStack.push(pageNum);
 		logger.debug(String.format("dispose page[%d]", pageNum));
 	}
 
@@ -343,7 +352,6 @@ public class PagedFile {
 	 * dirty. Calling this method has the same effect as calling
 	 * <tt>forcePage</tt> on each page.
 	 * 
-	 * @see forcePage
 	 * @throws IOException
 	 */
 	public void forceAllPages() {

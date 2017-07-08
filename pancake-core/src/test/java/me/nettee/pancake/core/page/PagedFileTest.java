@@ -21,11 +21,6 @@ public class PagedFileTest {
 
 	private PagedFile pagedFile;
 
-	@BeforeClass
-	public static void setUpBeforeClass() throws IOException {
-
-	}
-
 	@Before
 	public void setUp() throws IOException {
 		File file = new File("/tmp/a.db");
@@ -95,6 +90,8 @@ public class PagedFileTest {
 
 	@Test
 	public void testAllocatePage() {
+	    // Allocate N pages for a new PagedFile, the page numbers
+	    // must be 0, 1, 2, ..., N-1.
 		int N = allocatePages();
 		for (int pageNum = 0; pageNum < N; pageNum++) {
 			Page page = pagedFile.getPage(pageNum);
@@ -104,6 +101,8 @@ public class PagedFileTest {
 
 	@Test
 	public void testDisposePage() {
+		// The page numbers of disposed pages must not exist
+		// (until assigned to newly allocated pages).
 		int N = allocatePages();
 		Iterable<Integer> disposedPageNums = disposePages(N);
 		for (int pageNum : disposedPageNums) {
@@ -114,6 +113,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testDisposePage_unpinnedPage() {
+	    // A page must be unpinned before disposed, or an exception will be thrown.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(0, N);
 		thrown.expect(PagedFileException.class);
@@ -122,6 +122,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testDisposePage_notExist() {
+		// The number of the page to dispose must exist, or an exception will be thrown.
 		int N = allocatePages();
 		thrown.expect(PagedFileException.class);
 		pagedFile.disposePage(N + 1);
@@ -129,6 +130,7 @@ public class PagedFileTest {
 	
 	@Test
 	public void testDisposePage_disposeTwice() {
+		// A page must not be disposed twice, or an exception will be thrown.
 		int N = allocatePages();
 		int pageNum = RandomUtils.nextInt(0, N);
 		pagedFile.unpinPage(pageNum);
