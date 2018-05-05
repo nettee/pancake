@@ -1,0 +1,5 @@
+dependencies {
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'com.google.guava:guava:20.0'
+    compile 'com.github.jsqlparser:jsqlparser:0.9.6'
+}
