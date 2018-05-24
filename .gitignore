@@ -1,6 +1,7 @@
 # Build target
 **/target/
 **/build/
+**/out/
 
 # Gradle files
 .gradle/
