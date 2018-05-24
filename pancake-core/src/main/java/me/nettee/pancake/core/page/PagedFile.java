@@ -2,6 +2,7 @@ package me.nettee.pancake.core.page;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -28,12 +29,13 @@ import org.slf4j.LoggerFactory;
  * reallocated) page. A brand new page is never allocated if a previously
  * allocated page is available.
  * <p>
- * Currently, no buffer implementation.
- * 
+ *
  * @author nettee
  *
  */
 public class PagedFile {
+
+	// TODO complete buffer implementation for PagedFile
 
 	private static Logger logger = LoggerFactory.getLogger(PagedFile.class);
 
@@ -41,14 +43,11 @@ public class PagedFile {
 	private static final int BUFFER_SIZE = 4;
 
 	private RandomAccessFile file;
-	private int N;
+	private int N; // Number of pages
 //	private Map<Integer, Integer> disposedPageIndexes = new HashMap<>();
 	private Deque<Integer> disposedPageNumsStack = new LinkedList<>();
 
 	private Map<Integer, Page> buffer = new TreeMap<>();
-
-	private static final UnaryOperator<Integer> addOne = (x) -> x + 1;
-	private static final UnaryOperator<Integer> subOne = (x) -> x - 1;
 
 	private PagedFile(File file) {
 		try {
@@ -80,7 +79,7 @@ public class PagedFile {
 	 * @param file
 	 *            the file in OS
 	 * @return opened paged file
-	 * @throws IOException
+	 * @throws PagedFileException
 	 */
 	public static PagedFile open(File file) {
 		checkNotNull(file);
@@ -106,8 +105,8 @@ public class PagedFile {
 
 		// Collect disposed pages and push their nums orderly into the stack.
 		int[] disposedPageNums = new int[N+1];
-		for (int __ = 0; __ <= N; __++) {
-			disposedPageNums[__] = -1;
+		for (int i = 0; i <= N; i++) {
+			disposedPageNums[i] = -1;
 		}
 		for (int pageNum = 0; pageNum < N; pageNum++) {
 			file.seek(pageNum * Page.PAGE_SIZE);
@@ -141,8 +140,8 @@ public class PagedFile {
 		return N;
 	}
 
-	// TODO Check if this page is disposed, more than just check page index range.
 	private void checkPageNumRange(int pageNum) {
+		// TODO also check lower bound
 		if (pageNum >= N) {
 			throw new PagedFileException("page index out of bound: " + pageNum);
 		}
@@ -166,16 +165,14 @@ public class PagedFile {
 		file.seek(startPointer);
 		file.writeInt(page.num);
 		file.write(page.data);
-		String msg = String.format("fail to write page[%d]", page.num);
-		if (file.getFilePointer() != endPointer) {
-			throw new PagedFileException(msg);
-		}
+		checkState(file.getFilePointer() == endPointer,
+				String.format("error state when writing page[%d]", page.num));
 	}
 
 	/**
 	 * Allocate a new page in the file.
 	 * 
-	 * @return
+	 * @return a <tt>Page</tt> object
 	 * @throws PagedFileException When it fails to write the file.
 	 */
 	public Page allocatePage() {
@@ -209,12 +206,12 @@ public class PagedFile {
 	public void disposePage(int pageNum) {
 		checkPageNumRange(pageNum);
 		if (disposedPageNumsStack.contains(pageNum)) {
-			// page already disposed
+			// This page is already disposed.
 			String msg = String.format("page[%d] already disposed", pageNum);
 			throw new PagedFileException(msg);
 		}
 		if (buffer.containsKey(pageNum)) {
-			// page in buffer
+			// This page is in buffer.
 			Page page = buffer.get(pageNum);
 			if (page.pinned) {
 				String msg = String.format("fail to dispose pinned page[%d]", pageNum);
@@ -224,6 +221,7 @@ public class PagedFile {
 		// TODO fill the page with default byte
 		try {
 			file.seek(pageNum * Page.PAGE_SIZE);
+			// TODO explain why write this number
 			file.writeInt(-1 - disposedPageNumsStack.size());
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
@@ -233,7 +231,7 @@ public class PagedFile {
 		logger.debug(String.format("dispose page[%d]", pageNum));
 	}
 
-	/*
+	/**
 	 * Read page from buffer or from file.
 	 * 
 	 * NOTE: This method does not check page number range or disposed page.
@@ -265,6 +263,7 @@ public class PagedFile {
 		return readPage(pageNum);
 	}
 
+	// TODO add two helper private method: searchPageIncreasing and searchPageDecreasing
 	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
 		int pageNum = startPageNum;
 		// this loop search all pages except endPage
@@ -282,20 +281,28 @@ public class PagedFile {
 		throw new PagedFileException(messageOnFail);
 	}
 
+	private Page searchPageIncreasing(int startPageNum, int endPageNum, String messageOnFail) {
+		return searchPage(startPageNum, endPageNum, (x) -> x + 1, messageOnFail);
+	}
+
+	private Page searchPageDecreasing(int startPageNum, int endPageNum, String messageOnFail) {
+		return searchPage(startPageNum, endPageNum, (x) -> x - 1, messageOnFail);
+	}
+
 	public Page getFirstPage() {
-		return searchPage(0, N - 1, addOne, "no first page");
+		return searchPageIncreasing(0, N - 1, "no first page");
 	}
 
 	public Page getLastPage() {
-		return searchPage(N - 1, 0, subOne, "no last page");
+		return searchPageDecreasing(N - 1, 0, "no last page");
 	}
 
 	public Page getPreviousPage(int currentPageNum) {
-		return searchPage(currentPageNum - 1, 0, subOne, "no previous page");
+		return searchPageDecreasing(currentPageNum - 1, 0, "no previous page");
 	}
 
 	public Page getNextPage(int currentPageNum) {
-		return searchPage(currentPageNum + 1, N - 1, addOne, "no next page");
+		return searchPageIncreasing(currentPageNum + 1, N - 1, "no next page");
 	}
 
 	public void markDirty(int pageNum) {
@@ -326,8 +333,8 @@ public class PagedFile {
 	 * marked as dirty. The page remains in the buffer pool but is no longer
 	 * marked as dirty.
 	 * 
-	 * @param pageNum
-	 * @throws IOException
+	 * @param pageNum page number
+	 * @throws PagedFileException
 	 */
 	public void forcePage(int pageNum) {
 		if (!buffer.containsKey(pageNum)) {
@@ -351,8 +358,8 @@ public class PagedFile {
 	 * disk. The pages remains in the buffer pool but is no longer marked as
 	 * dirty. Calling this method has the same effect as calling
 	 * <tt>forcePage</tt> on each page.
-	 * 
-	 * @throws IOException
+	 *
+	 * @throws PagedFileException
 	 */
 	public void forceAllPages() {
 		for (int i = 0; i < N; i++) {

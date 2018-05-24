@@ -19,6 +19,7 @@ public class Page {
     Page(int num) {
         this.num = num;
         this.data = new byte[DATA_SIZE];
+        // Fill the memory with 0xee for ease of testing.
         Arrays.fill(this.data, (byte) 0xee);
     }
 
