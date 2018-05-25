@@ -48,11 +48,24 @@ class PageBuffer {
         unpin(page);
     }
 
+    void remove(int pageNum) {
+        Page page = get(pageNum);
+        checkState(page != null);
+        if (page.pinned) {
+            throw new PagedFileException(
+                    String.format("cannot to dispose pinned page[%d]", pageNum));
+        }
+        checkState(buf.containsKey(pageNum));
+        checkState(!pinnedPages.contains(pageNum));
+        checkState(unpinnedPages.contains(pageNum));
+        buf.remove(pageNum);
+        unpinnedPages.remove(pageNum);
+    }
+
     private void pin(Page page) {
         page.pinned = true;
         pinnedPages.add(page.num);
-        unpinnedPages.remove(page.num);
-        // TODO should check page.num not contained in unpinnedPages
+        checkState(!unpinnedPages.contains(page.num));
     }
 
     private void unpin(Page page) {

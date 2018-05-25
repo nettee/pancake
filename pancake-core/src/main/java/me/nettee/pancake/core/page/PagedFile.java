@@ -212,12 +212,7 @@ public class PagedFile {
 			throw new PagedFileException(msg);
 		}
 		if (buffer.contains(pageNum)) {
-			// This page is in buffer.
-			Page page = buffer.get(pageNum);
-			if (page.pinned) {
-				String msg = String.format("fail to dispose pinned page[%d]", pageNum);
-				throw new PagedFileException(msg);
-			}
+			buffer.remove(pageNum); // can throw exception
 		}
 		// TODO fill the page with default byte
 		try {
@@ -307,19 +302,17 @@ public class PagedFile {
 
 	/**
 	 * Mark that the page specified by <tt>pageNum</tt> have been or will be
-	 * modified. A <i>dirty</i> page is written back to disk when it is removed
-	 * from the buffer pool.
+	 * modified. The page must be pinned in the buffer pool. The <i>dirty</i>
+	 * pages will be written back to disk when removed from the buffer pool.
 	 * @param pageNum page number of the page to mark as dirty
 	 */
 	public void markDirty(int pageNum) {
 		checkPageNumRange(pageNum);
 		if (!buffer.contains(pageNum)) {
-			// TODO write test cases
 			throw new PagedFileException(String.format("mark page[%d] as dirty which is not in buffer pool", pageNum));
 		}
 		Page page = buffer.get(pageNum);
 		if (!page.pinned) {
-			// TODO write test cases
 			throw new PagedFileException(String.format("mark an unpinned page[%d] as dirty", pageNum));
 		}
 		page.dirty = true;

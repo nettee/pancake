@@ -1,5 +1,7 @@
 package me.nettee.pancake.core.page;
 
+import static me.nettee.pancake.core.page.PagedFilePageTest.allocatePages;
+import static me.nettee.pancake.core.page.PagedFilePageTest.unpinPages;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
@@ -7,6 +9,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,6 +48,47 @@ public class PagedFileBufferTest {
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
+
+	/**
+	 * A page can be marked as dirty.
+	 */
+	@Test
+	public void testMarkDirty() {
+		int N = allocatePages(pagedFile);
+		for (int i = 0; i < N; i++) {
+			pagedFile.markDirty(i);
+		}
+		unpinPages(pagedFile, N);
+	}
+
+	/**
+	 * A page to be marked as dirty must be in the buffer.
+	 */
+	@Test
+	public void testMarkDirty_notInBuffer() {
+		int N = allocatePages(pagedFile);
+		unpinPages(pagedFile, N);
+		reOpen();
+		for (int i = 0; i < N; i++) {
+			thrown.expect(PagedFileException.class);
+			pagedFile.markDirty(i);
+		}
+	}
+
+	/**
+	 * A page to be marked as dirty must be pinned in the buffer.
+	 */
+	@Test
+	public void testMarkDirty_notPinned() {
+		int N = allocatePages(pagedFile);
+		unpinPages(pagedFile, N);
+		for (int i = 0; i < N; i++) {
+			thrown.expect(PagedFileException.class);
+			pagedFile.markDirty(i);
+		}
+	}
+
+
 
 	private void putStringData(Page page, String data) {
 		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
