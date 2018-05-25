@@ -9,12 +9,15 @@ import org.junit.rules.ExpectedException;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class PagedFilePageTest {
 
@@ -66,6 +69,27 @@ public class PagedFilePageTest {
 		}
 		return disposedPageNums;
 	}
+
+	static void unpinPages(PagedFile pagedFile, int N) {
+		for (int i = 0; i < N; i++) {
+			pagedFile.unpinPage(i);
+		}
+	}
+
+	static void unpinPages(PagedFile pagedFile, Collection<Integer> nums) {
+		for (int num : nums) {
+			pagedFile.unpinPage(num);
+		}
+	}
+
+	static void unpinPages(PagedFile pagedFile, int N, Collection<Integer> excepts) {
+		for (int i = 0; i < N; i++) {
+			if (excepts.contains(i)) {
+				continue;
+			}
+			pagedFile.unpinPage(i);
+		}
+	}
 	
 	static void putStringData(Page page, String data) {
 		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
@@ -78,21 +102,18 @@ public class PagedFilePageTest {
 	}
 
 
-	private int allocatePages() {
-	    return allocatePages(pagedFile);
-	}
-
 	/**
 	 * Allocate N pages for a new <tt>PagedFile</tt>, the page numbers must be
 	 * 0, 1, 2, ..., N-1.
 	 */
 	@Test
 	public void testAllocatePage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		for (int i = 0; i < N; i++) {
 			Page page = pagedFile.getPage(i);
 			assertEquals(i, page.num);
 		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -101,12 +122,17 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testDisposePage() {
-		int N = allocatePages();
-		Iterable<Integer> disposedPageNums = disposePages(pagedFile, N);
+		int N = allocatePages(pagedFile);
+		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
 		for (int pageNum : disposedPageNums) {
-			thrown.expect(PagedFileException.class);
-			pagedFile.getPage(pageNum);
+			try {
+				pagedFile.disposePage(pageNum);
+				fail("expect PagedFileException to throw");
+			} catch (PagedFileException e) {
+				// expected
+			}
 		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -114,10 +140,15 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testDisposePage_unpinnedPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(0, N);
-		thrown.expect(PagedFileException.class);
-		pagedFile.disposePage(pageNum);
+		try {
+			pagedFile.disposePage(pageNum);
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -125,10 +156,14 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testDisposePage_notExist() {
-		// The number of the page to dispose must exist, or an exception will be thrown.
-		int N = allocatePages();
-		thrown.expect(PagedFileException.class);
-		pagedFile.disposePage(N + 1);
+		int N = allocatePages(pagedFile);
+		try {
+			pagedFile.disposePage(N + 1);
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -136,12 +171,17 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testDisposePage_disposeTwice() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(0, N);
 		pagedFile.unpinPage(pageNum);
 		pagedFile.disposePage(pageNum);
-		thrown.expect(PagedFileException.class);
-		pagedFile.disposePage(pageNum);
+		try {
+			pagedFile.disposePage(pageNum);
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, N, Arrays.asList(pageNum));
 	}
 
 	/**
@@ -150,8 +190,13 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testReAllocatePage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
+		System.out.println(String.format("allocated %d pages", N));
 		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
+		System.out.printf("disposed page nums = %s\n",
+				disposedPageNums.stream()
+						.map(String::valueOf)
+						.collect(Collectors.joining(", ", "[", "]")));
 		while (!disposedPageNums.isEmpty()) {
 			int expectedPageNum = disposedPageNums.pop();
 			Page page = pagedFile.allocatePage();
@@ -159,6 +204,7 @@ public class PagedFilePageTest {
 			Page page2 = pagedFile.getPage(expectedPageNum);
 			assertEquals(expectedPageNum, page2.num);
 		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -169,17 +215,23 @@ public class PagedFilePageTest {
 		int N = allocatePages(pagedFile);
 		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
 		for (int pageNum : disposedPageNums) {
-			thrown.expect(PagedFileException.class);
-			pagedFile.getPage(pageNum);
+			try {
+				pagedFile.getPage(pageNum);
+				fail("expect PagedFileException to throw");
+			} catch (PagedFileException e) {
+				// expected
+			}
 		}
+		unpinPages(pagedFile, N, disposedPageNums);
 	}
 
 	// The pageNum of the first page must be zero.
 	@Test
 	public void testGetFirstPage() {
-		allocatePages();
+		int N = allocatePages(pagedFile);
 		Page firstPage = pagedFile.getFirstPage();
 		assertEquals(0, firstPage.num);
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -188,11 +240,12 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetFirstPage_disposeFirstPage() {
-		allocatePages();
+		int N = allocatePages(pagedFile);
 		pagedFile.unpinPage(0);
 		pagedFile.disposePage(0);
 		Page firstPage = pagedFile.getFirstPage();
 		assertEquals(1, firstPage.num);
+		unpinPages(pagedFile, N, Arrays.asList(0));
 	}
 
 	/**
@@ -221,9 +274,10 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetLastPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		Page lastPage = pagedFile.getLastPage();
 		assertEquals(N - 1, lastPage.num);
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -231,11 +285,12 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetLastPage_disposeLastPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		pagedFile.unpinPage(N - 1);
 		pagedFile.disposePage(N - 1);
 		Page lastPage = pagedFile.getLastPage();
 		assertEquals(N - 2, lastPage.num);
+		unpinPages(pagedFile, N, Arrays.asList(N - 1));
 	}
 
 	/**
@@ -265,10 +320,11 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetPreviousPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(1, N);
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
 		assertEquals(pageNum - 1, previousPage.num);
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -276,12 +332,13 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetPreviousPage_disposedPageGap() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(2, N);
 		pagedFile.unpinPage(pageNum - 1);
 		pagedFile.disposePage(pageNum - 1);
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
 		assertEquals(pageNum - 2, previousPage.num);
+		unpinPages(pagedFile, N, Arrays.asList(pageNum - 1));
 	}
 
 	/**
@@ -289,9 +346,14 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetPreviousPage_noPrevious() {
-		allocatePages();
-		thrown.expect(PagedFileException.class);
-		pagedFile.getPreviousPage(0);
+		int N = allocatePages(pagedFile);
+		try {
+			pagedFile.getPreviousPage(0);
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -300,10 +362,11 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetNextPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(0, N - 1);
 		Page nextPage = pagedFile.getNextPage(pageNum);
 		assertEquals(pageNum + 1, nextPage.num);
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -311,12 +374,13 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetNextPage_disposedPageGap() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(0, N - 2);
 		pagedFile.unpinPage(pageNum + 1);
 		pagedFile.disposePage(pageNum + 1);
 		Page nextPage = pagedFile.getNextPage(pageNum);
 		assertEquals(pageNum + 2, nextPage.num);
+		unpinPages(pagedFile, N , Arrays.asList(pageNum + 1));
 	}
 
 	/**
@@ -324,9 +388,14 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetNextPage_noNext() {
-		int N = allocatePages();
-		thrown.expect(PagedFileException.class);
-		pagedFile.getNextPage(N - 1);
+		int N = allocatePages(pagedFile);
+		try {
+			pagedFile.getNextPage(N - 1);
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -335,7 +404,7 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetPreviousNextPage() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(1, N - 1);
 		Page nextPage = pagedFile.getNextPage(pageNum);
 		Page previousOfNextPage = pagedFile.getPreviousPage(nextPage.num);
@@ -343,6 +412,7 @@ public class PagedFilePageTest {
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
 		Page nextOfPreviousPage = pagedFile.getNextPage(previousPage.num);
 		assertEquals(pageNum, nextOfPreviousPage.num);
+		unpinPages(pagedFile, N);
 	}
 
 	/**
@@ -351,7 +421,7 @@ public class PagedFilePageTest {
 	 */
 	@Test
 	public void testGetPreviousNextPage_disposedPageGap() {
-		int N = allocatePages();
+		int N = allocatePages(pagedFile);
 		int pageNum = RandomUtils.nextInt(2, N - 2);
 		pagedFile.unpinPage(pageNum - 1);
 		pagedFile.disposePage(pageNum - 1);
@@ -363,5 +433,6 @@ public class PagedFilePageTest {
 		Page previousPage = pagedFile.getPreviousPage(pageNum);
 		Page nextOfPreviousPage = pagedFile.getNextPage(previousPage.num);
 		assertEquals(pageNum, nextOfPreviousPage.num);
+		unpinPages(pagedFile, N, Arrays.asList(pageNum - 1, pageNum + 1));
 	}
 }

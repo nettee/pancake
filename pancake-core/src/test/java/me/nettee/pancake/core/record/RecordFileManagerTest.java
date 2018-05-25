@@ -3,10 +3,12 @@ package me.nettee.pancake.core.record;
 import java.io.File;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+@Ignore
 public class RecordFileManagerTest {
 
 	private static final int RECORD_SIZE = 8;

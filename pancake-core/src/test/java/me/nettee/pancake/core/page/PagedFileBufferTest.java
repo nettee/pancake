@@ -64,12 +64,14 @@ public class PagedFileBufferTest {
 			pagedFile.markDirty(page.num);
 			putStringData(page, str);
 			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page.num);
 		}
 		reOpen();
 		{
 			Page page = pagedFile.getPage(0);
 			String str2 = getStringData(page, str.length());
 			assertEquals(str, str2);
+			pagedFile.unpinPage(page.num);
 		}
 	}
 
@@ -78,7 +80,8 @@ public class PagedFileBufferTest {
 		String str1 = "ABCDEFG-HIJKLMN-OPQRST-UVWXYZ";
 		String str2 = "OPQRST-UVWXYZ-ABCDEFG-HIJKLMN";
 		{
-			pagedFile.allocatePage();
+			Page page = pagedFile.allocatePage();
+			pagedFile.unpinPage(page);
 		}
 		reOpen();
 		{
@@ -86,18 +89,21 @@ public class PagedFileBufferTest {
 			pagedFile.markDirty(page.num);
 			putStringData(page, str1);
 			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page);
 		}
 		reOpen();
 		{
 			Page page = pagedFile.getFirstPage();
 			putStringData(page, str2);
 			// no force page here
+			pagedFile.unpinPage(page);
 		}
 		reOpen();
 		{
 			Page page = pagedFile.getFirstPage();
 			String str = getStringData(page, str1.length());
 			assertEquals(str1, str);
+			pagedFile.unpinPage(page);
 		}
 	}
 

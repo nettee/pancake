@@ -1,8 +1,7 @@
 package me.nettee.pancake.core.page;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -10,9 +9,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.*;
 
 /**
  * <b>Paged file</b> is the bottom component of pancake-core. This component
@@ -35,19 +34,14 @@ import org.slf4j.LoggerFactory;
  */
 public class PagedFile {
 
-	// TODO complete buffer implementation for PagedFile
-
 	private static Logger logger = LoggerFactory.getLogger(PagedFile.class);
-
-	// TODO limit buffer size
-	private static final int BUFFER_SIZE = 4;
 
 	private RandomAccessFile file;
 	private int N; // Number of pages
 //	private Map<Integer, Integer> disposedPageIndexes = new HashMap<>();
 	private Deque<Integer> disposedPageNumsStack = new LinkedList<>();
 
-	private Map<Integer, Page> buffer = new TreeMap<>();
+	private PageBuffer buffer = new PageBuffer();
 
 	private PagedFile(File file) {
 		try {
@@ -129,6 +123,14 @@ public class PagedFile {
 	 * to the disk before the file is closed.
 	 */
 	public void close() {
+		// TODO flush all pages in the buffer pool
+		if (buffer.hasPinnedPages()) {
+			System.out.printf("still has pinned pages: %s\n",
+					buffer.getPinnedPages().stream()
+							.map(String::valueOf)
+							.collect(Collectors.joining(", ", "[", "]")));
+			throw new PagedFileException("cannot close paged file: there are pinned pages in the buffer pool");
+		}
 		try {
 			file.close();
 		} catch (IOException e) {
@@ -188,7 +190,7 @@ public class PagedFile {
 			String msg = String.format("fail to allocate page[%d]", pageNum);
 			throw new PagedFileException(msg, e);
 		}
-		buffer.put(page.num, page);
+		buffer.putAndPin(page);
 		logger.debug(String.format("allocate page[%d]", pageNum));
 		return page;
 	}
@@ -209,7 +211,7 @@ public class PagedFile {
 			String msg = String.format("page[%d] already disposed", pageNum);
 			throw new PagedFileException(msg);
 		}
-		if (buffer.containsKey(pageNum)) {
+		if (buffer.contains(pageNum)) {
 			// This page is in buffer.
 			Page page = buffer.get(pageNum);
 			if (page.pinned) {
@@ -240,11 +242,11 @@ public class PagedFile {
 	 */
 	private Page readPage(int pageNum) {
 		try {
-			if (buffer.containsKey(pageNum)) {
+			if (buffer.contains(pageNum)) {
 				return buffer.get(pageNum);
 			} else {
 				Page page = readPageFromFile(pageNum);
-				buffer.put(page.num, page);
+				buffer.putAndPin(page);
 				return page;
 			}
 		} catch (IOException e) {
@@ -256,7 +258,7 @@ public class PagedFile {
 	public Page getPage(int pageNum) {
 		checkPageNumRange(pageNum);
 		if (isDisposed(pageNum)) {
-			String msg = String.format("page[%d] is disposed", pageNum);
+			String msg = String.format("cannot get a disposed page[%d]", pageNum);
 			throw new PagedFileException(msg);
 		}
 		return readPage(pageNum);
@@ -303,24 +305,52 @@ public class PagedFile {
 		return searchPageIncreasing(currentPageNum + 1, N - 1, "no next page");
 	}
 
+	/**
+	 * Mark that the page specified by <tt>pageNum</tt> have been or will be
+	 * modified. A <i>dirty</i> page is written back to disk when it is removed
+	 * from the buffer pool.
+	 * @param pageNum page number of the page to mark as dirty
+	 */
 	public void markDirty(int pageNum) {
-		if (buffer.containsKey(pageNum)) {
-			Page page = buffer.get(pageNum);
-			page.dirty = true;
+		checkPageNumRange(pageNum);
+		if (!buffer.contains(pageNum)) {
+			// TODO write test cases
+			throw new PagedFileException(String.format("mark page[%d] as dirty which is not in buffer pool", pageNum));
 		}
+		Page page = buffer.get(pageNum);
+		if (!page.pinned) {
+			// TODO write test cases
+			throw new PagedFileException(String.format("mark an unpinned page[%d] as dirty", pageNum));
+		}
+		page.dirty = true;
 	}
-	
+
+	/**
+	 * Mark that the <tt>page</tt> have been or will be modified. A
+	 * <i>dirty</i> page is written back to disk when it is removed from the
+	 * buffer pool.
+	 * @param page the page to mark as dirty
+	 */
 	public void markDirty(Page page) {
 		markDirty(page.num);
 	}
 
+	/**
+	 * Mark that the page specified by <tt>pageNum</tt> is no longer needed in
+	 * memory.
+	 * @param pageNum page number of the page to unpin
+	 */
 	public void unpinPage(int pageNum) {
-		if (buffer.containsKey(pageNum)) {
-			Page page = buffer.get(pageNum);
-			page.pinned = false;
+		checkPageNumRange(pageNum);
+		if (buffer.contains(pageNum)) {
+			buffer.unpin(pageNum);
 		}
 	}
-	
+
+	/**
+	 * Mark that the <tt>page</tt> is no longer need in memory.
+	 * @param page the page to unpin
+	 */
 	public void unpinPage(Page page) {
 		unpinPage(page.num);
 	}
@@ -335,7 +365,7 @@ public class PagedFile {
 	 * @throws PagedFileException
 	 */
 	public void forcePage(int pageNum) {
-		if (!buffer.containsKey(pageNum)) {
+		if (!buffer.contains(pageNum)) {
 			return;
 		}
 		Page page = buffer.get(pageNum);
@@ -343,9 +373,7 @@ public class PagedFile {
 			return;
 		}
 		try {
-			file.seek(pageNum * Page.PAGE_SIZE);
-			file.writeInt(pageNum);
-			file.write(page.data);
+			writePageToFile(page);
 		} catch (IOException e) {
 			throw new PagedFileException(e);
 		}
