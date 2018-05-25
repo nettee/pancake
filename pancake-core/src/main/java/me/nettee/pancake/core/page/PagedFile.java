@@ -124,7 +124,6 @@ public class PagedFile {
 	 * to the disk before the file is closed.
 	 */
 	public void close() {
-		// TODO flush all pages in the buffer pool
 		if (buffer.hasPinnedPages()) {
 			System.out.printf("still has pinned pages: %s\n",
 					buffer.getPinnedPages().stream()
@@ -132,6 +131,7 @@ public class PagedFile {
 							.collect(Collectors.joining(", ", "[", "]")));
 			throw new PagedFileException("cannot close paged file: there are pinned pages in the buffer pool");
 		}
+		buffer.writeBackAllUnpinned();
 		try {
 			file.close();
 		} catch (IOException e) {
@@ -161,7 +161,7 @@ public class PagedFile {
 		return page;
 	}
 
-	private void writePageToFile(Page page) throws IOException {
+	void writePageToFile(Page page) throws IOException {
 		int startPointer = page.num * Page.PAGE_SIZE;
 		int endPointer = (page.num + 1) * Page.PAGE_SIZE;
 		file.seek(startPointer);

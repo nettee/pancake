@@ -150,6 +150,29 @@ public class PagedFileBufferTest {
 		return str;
 	}
 
+	/**
+	 * All (unpinned) pages are written back to disk when closing the paged
+	 * file.
+	 */
+	@Test
+	public void testWriteBack() {
+		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
+			putStringData(page, str);
+			pagedFile.unpinPage(page);
+			// Do not force this page
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str2 = getStringData(page, str.length());
+			assertEquals(str, str2);
+			pagedFile.unpinPage(page);
+		}
+	}
+
 	@Test
 	public void testForcePage() {
 		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

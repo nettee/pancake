@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.page;
 
+import java.io.IOException;
 import java.util.*;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -55,7 +56,6 @@ class PageBuffer {
         unpin(page);
     }
 
-    // TODO write back if page is dirty
     void remove(int pageNum) {
         Page page = get(pageNum);
         checkState(page != null);
@@ -63,11 +63,30 @@ class PageBuffer {
             throw new PagedFileException(
                     String.format("cannot to dispose pinned page[%d]", pageNum));
         }
+
         checkState(buf.containsKey(pageNum));
         checkState(!pinnedPages.contains(pageNum));
         checkState(unpinnedPages.contains(pageNum));
         buf.remove(pageNum);
         unpinnedPages.remove(pageNum);
+
+        writeBack(page);
+    }
+
+    private void writeBack(Page page) {
+        if (page.dirty) {
+            try {
+                pagedFile.writePageToFile(page);
+            } catch (IOException e) {
+                throw new PagedFileException(e);
+            }
+        }
+    }
+
+    void writeBackAllUnpinned() {
+        for (int pageNum : unpinnedPages) {
+            writeBack(get(pageNum));
+        }
     }
 
     private void pin(Page page) {
