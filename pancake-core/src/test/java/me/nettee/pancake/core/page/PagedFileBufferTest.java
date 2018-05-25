@@ -37,7 +37,7 @@ public class PagedFileBufferTest {
 		pagedFile.close();
 	}
 
-	public void reOpen() {
+	private void reOpen() {
 		pagedFile.close();
 		pagedFile = PagedFile.open(file);
 	}
@@ -100,5 +100,7 @@ public class PagedFileBufferTest {
 			assertEquals(str1, str);
 		}
 	}
+
+	// TODO more test cases
 
 }

@@ -141,8 +141,7 @@ public class PagedFile {
 	}
 
 	private void checkPageNumRange(int pageNum) {
-		// TODO also check lower bound
-		if (pageNum >= N) {
+		if (pageNum < 0 || pageNum >= N) {
 			throw new PagedFileException("page index out of bound: " + pageNum);
 		}
 	}
@@ -263,7 +262,6 @@ public class PagedFile {
 		return readPage(pageNum);
 	}
 
-	// TODO add two helper private method: searchPageIncreasing and searchPageDecreasing
 	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
 		int pageNum = startPageNum;
 		// this loop search all pages except endPage
