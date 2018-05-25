@@ -1,17 +1,15 @@
 package me.nettee.pancake.core.page;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.google.common.base.Preconditions.checkState;
 
 // TODO complete buffer implementation for PagedFile
 class PageBuffer {
 
-    private static final int BUFFER_SIZE = 40;
+    static final int BUFFER_SIZE = 40;
 
+    private final PagedFile pagedFile;
     private Map<Integer, Page> buf;
 
     /**
@@ -26,7 +24,8 @@ class PageBuffer {
      */
     private Set<Integer> pinnedPages, unpinnedPages;
 
-    PageBuffer() {
+    PageBuffer(PagedFile pagedFile) {
+        this.pagedFile = pagedFile;
         buf = new HashMap<>();
         pinnedPages = new HashSet<>();
         unpinnedPages = new HashSet<>();
@@ -38,7 +37,15 @@ class PageBuffer {
      * @param page The page to be put and pinned.
      */
     void putAndPin(Page page) {
-        checkState(!isFull(), "buffer pool is already full");
+        if (isFull()) {
+            if (hasUnpinnedPage()) {
+                int pageNum = getOneUnpinnedPage();
+                remove(pageNum);
+                checkState(!isFull());
+            } else {
+                throw new PagedFileException("buffer pool is already full");
+            }
+        }
         buf.put(page.num, page);
         pin(page);
     }
@@ -48,6 +55,7 @@ class PageBuffer {
         unpin(page);
     }
 
+    // TODO write back if page is dirty
     void remove(int pageNum) {
         Page page = get(pageNum);
         checkState(page != null);
@@ -84,6 +92,15 @@ class PageBuffer {
 
     boolean hasPinnedPages() {
         return !pinnedPages.isEmpty();
+    }
+
+    private boolean hasUnpinnedPage() {
+        return !unpinnedPages.isEmpty();
+    }
+
+    private int getOneUnpinnedPage() {
+        checkState(!unpinnedPages.isEmpty());
+        return unpinnedPages.iterator().next();
     }
 
     // For test only

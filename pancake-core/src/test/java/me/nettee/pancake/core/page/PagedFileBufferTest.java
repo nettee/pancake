@@ -3,6 +3,7 @@ package me.nettee.pancake.core.page;
 import static me.nettee.pancake.core.page.PagedFilePageTest.allocatePages;
 import static me.nettee.pancake.core.page.PagedFilePageTest.unpinPages;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
@@ -88,7 +89,55 @@ public class PagedFileBufferTest {
 		}
 	}
 
+	/**
+	 * When the buffer is full, no pages can be pinned to the buffer.
+	 */
+	@Test
+	public void testBuffer_full() {
+		// Make buffer full
+		for (int i = 0; i < PageBuffer.BUFFER_SIZE; i++) {
+			pagedFile.allocatePage();
+		}
+		try {
+			pagedFile.allocatePage();
+			fail("expect PagedFileException to throw");
+		} catch (PagedFileException e) {
+			// expected
+		}
+		unpinPages(pagedFile, PageBuffer.BUFFER_SIZE);
+	}
 
+	/**
+	 * When the buffer is full, unpinned pages will be removed to save space
+	 * for newly pinned pages
+	 */
+	@Test
+	public void testBuffer_full_removeUnpinned() {
+		// Make buffer full
+		for (int i = 0; i < PageBuffer.BUFFER_SIZE; i++) {
+			pagedFile.allocatePage();
+		}
+		pagedFile.unpinPage(0);
+		// No exception here
+		Page page1 = pagedFile.allocatePage();
+
+		for (int i = 1; i < PageBuffer.BUFFER_SIZE; i++) {
+			pagedFile.unpinPage(i);
+		}
+		pagedFile.unpinPage(page1);
+	}
+
+	/**
+	 * The buffer will not be full if pages are unpinned in time.
+	 */
+	@Test
+	public void testBuffer_unpin_neverFull() {
+		// Allocate pages more than buffer size.
+		for (int i = 0; i < 3 * PageBuffer.BUFFER_SIZE; i++) {
+			Page page = pagedFile.allocatePage();
+			pagedFile.unpinPage(page.num);
+		}
+	}
 
 	private void putStringData(Page page, String data) {
 		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);

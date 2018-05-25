@@ -41,9 +41,10 @@ public class PagedFile {
 //	private Map<Integer, Integer> disposedPageIndexes = new HashMap<>();
 	private Deque<Integer> disposedPageNumsStack = new LinkedList<>();
 
-	private PageBuffer buffer = new PageBuffer();
+	private PageBuffer buffer;
 
 	private PagedFile(File file) {
+		buffer = new PageBuffer(this);
 		try {
 			this.file = new RandomAccessFile(file, "rw");
 		} catch (FileNotFoundException e) {
