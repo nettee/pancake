@@ -4,14 +4,12 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Ignore
 public class RecordFileScanTest {
 	
 	private static Logger logger = LoggerFactory.getLogger(RecordFileScanTest.class);

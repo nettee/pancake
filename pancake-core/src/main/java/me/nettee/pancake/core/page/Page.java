@@ -12,7 +12,7 @@ public class Page {
     public static final int DATA_SIZE = 4092;
 
     int num;
-    boolean pinned = true;
+    boolean pinned = false;
     boolean dirty = false;
     byte[] data;
 
