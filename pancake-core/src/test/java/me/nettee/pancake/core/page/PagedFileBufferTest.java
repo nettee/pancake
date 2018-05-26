@@ -1,23 +1,13 @@
 package me.nettee.pancake.core.page;
 
-import static me.nettee.pancake.core.page.PagedFilePageTest.allocatePages;
-import static me.nettee.pancake.core.page.PagedFilePageTest.unpinPages;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import org.junit.*;
+import org.junit.rules.ExpectedException;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PagedFileBufferTest {
 
@@ -25,12 +15,12 @@ public class PagedFileBufferTest {
 	private PagedFile pagedFile;
 
 	@BeforeClass
-	public static void setUpBeforeClass() throws IOException {
+	public static void setUpBeforeClass() {
 
 	}
 
 	@Before
-	public void setUp() throws IOException {
+	public void setUp() {
 		if (file.exists()) {
 			file.delete();
 		}
@@ -139,16 +129,16 @@ public class PagedFileBufferTest {
 		}
 	}
 
-	private void putStringData(Page page, String data) {
-		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
-		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
-	}
-
-	private String getStringData(Page page, int length) {
-		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
-		String str = new String(bytes, StandardCharsets.US_ASCII);
-		return str;
-	}
+//	private void putStringData(Page page, String data) {
+//		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
+//		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
+//	}
+//
+//	private String getStringData(Page page, int length) {
+//		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
+//		String str = new String(bytes, StandardCharsets.US_ASCII);
+//		return str;
+//	}
 
 	/**
 	 * All (unpinned) pages are written back to disk when closing the paged

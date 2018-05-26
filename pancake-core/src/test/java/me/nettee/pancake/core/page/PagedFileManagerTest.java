@@ -4,19 +4,18 @@ import org.junit.*;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
-import java.io.IOException;
 
 public class PagedFileManagerTest {
 	
 	private File file;
 	
 	@BeforeClass
-	public static void setUpBeforeClass() throws IOException {
+	public static void setUpBeforeClass() {
 		
 	}
 	
 	@Before
-	public void setUp() throws IOException {
+	public void setUp() {
 		file = new File("/tmp/b.db");
 		if (file.exists()) {
 			file.delete();
@@ -24,7 +23,7 @@ public class PagedFileManagerTest {
 	}
 	
 	@After
-	public void tearDown() throws IOException {
+	public void tearDown() {
 	}
 	
 	@Rule

@@ -8,23 +8,20 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Array;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
+import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PagedFilePageTest {
 
 	private PagedFile pagedFile;
 
 	@Before
-	public void setUp() throws IOException {
+	public void setUp() {
 		File file = new File("/tmp/a.db");
 		if (file.exists()) {
 			file.delete();
@@ -39,67 +36,6 @@ public class PagedFilePageTest {
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
-
-	/**
-	 * Allocate a random number of pages.
-	 * @param pagedFile the <tt>PagedFile</tt> object
-	 * @return the number of allocated pages
-	 */
-	static int allocatePages(PagedFile pagedFile) {
-		int N = RandomUtils.nextInt(5, 20);
-		for (int i = 0; i < N; i++) {
-			pagedFile.allocatePage();
-		}
-		return N;
-	}
-
-	/**
-	 * Randomly dispose 3 pages, and return their pageNums.
-	 * @param pagedFile the <tt>PagedFile</tt> object
-	 * @param N the number of existing pages
-	 * @return the pageNums of disposed pages
-	 */
-	static Deque<Integer> disposePages(PagedFile pagedFile, int N) {
-		Deque<Integer> disposedPageNums = new LinkedList<>();
-		for (int i = 0; i < 3; i++) {
-			int pageNum = RandomUtils.nextInt(i * N / 3, (i + 1) * N / 3);
-			pagedFile.unpinPage(pageNum);
-			pagedFile.disposePage(pageNum);
-			disposedPageNums.push(pageNum);
-		}
-		return disposedPageNums;
-	}
-
-	static void unpinPages(PagedFile pagedFile, int N) {
-		for (int i = 0; i < N; i++) {
-			pagedFile.unpinPage(i);
-		}
-	}
-
-	static void unpinPages(PagedFile pagedFile, Collection<Integer> nums) {
-		for (int num : nums) {
-			pagedFile.unpinPage(num);
-		}
-	}
-
-	static void unpinPages(PagedFile pagedFile, int N, Collection<Integer> excepts) {
-		for (int i = 0; i < N; i++) {
-			if (excepts.contains(i)) {
-				continue;
-			}
-			pagedFile.unpinPage(i);
-		}
-	}
-	
-	static void putStringData(Page page, String data) {
-		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
-		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
-	}
-
-	static String getStringData(Page page, int length) {
-		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
-		return new String(bytes, StandardCharsets.US_ASCII);
-	}
 
 
 	/**
