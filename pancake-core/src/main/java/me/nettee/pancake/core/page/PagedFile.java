@@ -7,7 +7,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.*;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -131,7 +132,11 @@ public class PagedFile {
 							.collect(Collectors.joining(", ", "[", "]")));
 			throw new PagedFileException("cannot close paged file: there are pinned pages in the buffer pool");
 		}
-		buffer.writeBackAllUnpinned();
+
+		for (int pageNum : buffer.getUnpinnedPages()) {
+			writeBack(buffer.get(pageNum));
+		}
+
 		try {
 			file.close();
 		} catch (IOException e) {
@@ -213,7 +218,12 @@ public class PagedFile {
 			throw new PagedFileException(msg);
 		}
 		if (buffer.contains(pageNum)) {
-			buffer.remove(pageNum); // can throw exception
+			if (buffer.isPinned(pageNum)) {
+				String msg = String.format("cannot dispose a pinned page[%d]",
+						pageNum);
+				throw new PagedFileException(msg);
+			}
+			buffer.removeWithoutWriteBack(pageNum); // can throw exception
 		}
 		// TODO fill the page with default byte
 		try {
@@ -349,6 +359,22 @@ public class PagedFile {
 		unpinPage(page.num);
 	}
 
+	void writeBack(Page page) {
+		checkState(buffer.contains(page.num));
+		if (page.dirty) {
+			try {
+				writePageToFile(page);
+			} catch (IOException e) {
+				throw new PagedFileException(e);
+			}
+		}
+	}
+
+	void writeBack(int pageNum) {
+		checkState(buffer.contains(pageNum));
+		writeBack(buffer.get(pageNum));
+	}
+
 	/**
 	 * This method copies the contents of the page specified by <tt>pageNum</tt>
 	 * from the buffer pool to disk if the page is in the buffer pool and is
@@ -360,17 +386,12 @@ public class PagedFile {
 	 */
 	public void forcePage(int pageNum) {
 		if (!buffer.contains(pageNum)) {
-			return;
+			throw new PagedFileException(String.format(
+					"force page[%d], which is not in the buffer pool", pageNum));
 		}
-		Page page = buffer.get(pageNum);
-		if (!page.dirty) {
-			return;
-		}
-		try {
-			writePageToFile(page);
-		} catch (IOException e) {
-			throw new PagedFileException(e);
-		}
+		writeBack(pageNum);
+
+		// TODO remove dirty mark
 	}
 
 	/**
@@ -382,6 +403,7 @@ public class PagedFile {
 	 * @throws PagedFileException
 	 */
 	public void forceAllPages() {
+		// TODO only force pages in the buffer pool
 		for (int i = 0; i < N; i++) {
 			forcePage(i);
 		}

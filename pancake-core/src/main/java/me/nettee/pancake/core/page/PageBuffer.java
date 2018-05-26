@@ -1,8 +1,8 @@
 package me.nettee.pancake.core.page;
 
-import java.io.IOException;
 import java.util.*;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 // TODO complete buffer implementation for PagedFile
@@ -21,7 +21,6 @@ class PageBuffer {
      * <li>The intersection of <tt>pinnedPages</tt> and
      * <tt>unpinnedPages</tt> is empty</li>
      * </ul>
-     *
      */
     private Set<Integer> pinnedPages, unpinnedPages;
 
@@ -29,19 +28,19 @@ class PageBuffer {
         this.pagedFile = pagedFile;
         buf = new HashMap<>();
         pinnedPages = new HashSet<>();
-        unpinnedPages = new HashSet<>();
+        unpinnedPages = new LinkedHashSet<>(); // Record the insert order.
     }
 
     /**
-     * Put the <tt>page</tt> into buffer and pin it in buffer. A page is
-     * pinned when and only when it is put into buffer.
+     * Put the <tt>page</tt> into buffer and pin it in buffer. A page is pinned
+     * when and only when it is put into buffer.
      * @param page The page to be put and pinned.
      */
     void putAndPin(Page page) {
         if (isFull()) {
-            if (hasUnpinnedPage()) {
+            if (hasUnpinnedPages()) {
                 int pageNum = getOneUnpinnedPage();
-                remove(pageNum);
+                writeBackAndRemove(pageNum);
                 checkState(!isFull());
             } else {
                 throw new PagedFileException("buffer pool is already full");
@@ -56,38 +55,30 @@ class PageBuffer {
         unpin(page);
     }
 
-    void remove(int pageNum) {
+    private void writeBackAndRemove(int pageNum) {
         Page page = get(pageNum);
-        checkState(page != null);
-        if (page.pinned) {
-            throw new PagedFileException(
-                    String.format("cannot to dispose pinned page[%d]", pageNum));
-        }
+        checkNotNull(page);
+        checkState(!page.pinned);
+        // Note: write back first, then remove
+        pagedFile.writeBack(page);
+        remove0(pageNum);
+    }
 
+    void removeWithoutWriteBack(int pageNum) {
+        Page page = get(pageNum);
+        checkNotNull(page);
+        checkState(!page.pinned);
+        remove0(page.num);
+    }
+
+    private void remove0(int pageNum) {
         checkState(buf.containsKey(pageNum));
         checkState(!pinnedPages.contains(pageNum));
         checkState(unpinnedPages.contains(pageNum));
         buf.remove(pageNum);
         unpinnedPages.remove(pageNum);
-
-        writeBack(page);
     }
 
-    private void writeBack(Page page) {
-        if (page.dirty) {
-            try {
-                pagedFile.writePageToFile(page);
-            } catch (IOException e) {
-                throw new PagedFileException(e);
-            }
-        }
-    }
-
-    void writeBackAllUnpinned() {
-        for (int pageNum : unpinnedPages) {
-            writeBack(get(pageNum));
-        }
-    }
 
     private void pin(Page page) {
         page.pinned = true;
@@ -105,28 +96,38 @@ class PageBuffer {
         return buf.containsKey(pageNum);
     }
 
-    boolean isFull() {
+    private boolean isFull() {
         return buf.size() >= BUFFER_SIZE;
+    }
+
+    boolean isPinned(int pageNum) {
+        return pinnedPages.contains(pageNum);
     }
 
     boolean hasPinnedPages() {
         return !pinnedPages.isEmpty();
     }
 
-    private boolean hasUnpinnedPage() {
+    private boolean hasUnpinnedPages() {
         return !unpinnedPages.isEmpty();
     }
 
+    // TODO apply LIFO policy
     private int getOneUnpinnedPage() {
         checkState(!unpinnedPages.isEmpty());
         return unpinnedPages.iterator().next();
     }
 
     // For test only
-    public Set<Integer> getPinnedPages() {
+    Set<Integer> getPinnedPages() {
         return pinnedPages;
     }
 
+    Set<Integer> getUnpinnedPages() {
+        return unpinnedPages;
+    }
+
+    // TODO what if an unpinned page is got latter?
     Page get(int pageNum) {
         return buf.get(pageNum);
     }
