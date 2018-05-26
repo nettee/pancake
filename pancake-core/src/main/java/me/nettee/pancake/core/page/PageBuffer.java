@@ -50,6 +50,14 @@ class PageBuffer {
         pin(page);
     }
 
+    void pinAgainIfNot(Page page) {
+        checkState(buf.containsKey(page.num));
+        if (!page.pinned) {
+            checkState(unpinnedPages.contains(page.num));
+            pinAgain(page);
+        }
+    }
+
     void unpin(int pageNum) {
         Page page = get(pageNum);
         unpin(page);
@@ -86,6 +94,14 @@ class PageBuffer {
         checkState(!unpinnedPages.contains(page.num));
     }
 
+    private void pinAgain(Page page) {
+        page.pinned = true;
+        pinnedPages.add(page.num);
+        unpinnedPages.remove(page.num);
+    }
+
+    // A page can be unpinned twice.
+    // TODO check if this works when a page is unpinned twice
     private void unpin(Page page) {
         page.pinned = false;
         pinnedPages.remove(page.num);

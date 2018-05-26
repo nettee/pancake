@@ -17,6 +17,16 @@ public class PagedFileTestUtils {
      */
     static int allocatePages(PagedFile pagedFile) {
         int N = RandomUtils.nextInt(5, 20);
+        return allocatePages(pagedFile, N);
+    }
+
+    /**
+     * Allocate given number of pages.
+     * @param pagedFile the <tt>PagedFile</tt> object
+     * @param N the number of pages to allocate
+     * @return the number of allocated pages
+     */
+    static int allocatePages(PagedFile pagedFile, int N) {
         for (int i = 0; i < N; i++) {
             pagedFile.allocatePage();
         }

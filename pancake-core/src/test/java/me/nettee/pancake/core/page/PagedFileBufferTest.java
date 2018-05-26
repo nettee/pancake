@@ -1,9 +1,13 @@
 package me.nettee.pancake.core.page;
 
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
@@ -83,7 +87,7 @@ public class PagedFileBufferTest {
 	 * When the buffer is full, no pages can be pinned to the buffer.
 	 */
 	@Test
-	public void testBuffer_full() {
+	public void testBufferFull() {
 		// Make buffer full
 		for (int i = 0; i < PageBuffer.BUFFER_SIZE; i++) {
 			pagedFile.allocatePage();
@@ -102,7 +106,7 @@ public class PagedFileBufferTest {
 	 * for newly pinned pages
 	 */
 	@Test
-	public void testBuffer_full_removeUnpinned() {
+	public void testBufferFull_removeUnpinned() {
 		// Make buffer full
 		for (int i = 0; i < PageBuffer.BUFFER_SIZE; i++) {
 			pagedFile.allocatePage();
@@ -121,7 +125,7 @@ public class PagedFileBufferTest {
 	 * The buffer will not be full if pages are unpinned in time.
 	 */
 	@Test
-	public void testBuffer_unpin_neverFull() {
+	public void testBufferNeverFull() {
 		// Allocate pages more than buffer size.
 		for (int i = 0; i < 3 * PageBuffer.BUFFER_SIZE; i++) {
 			Page page = pagedFile.allocatePage();
@@ -129,16 +133,55 @@ public class PagedFileBufferTest {
 		}
 	}
 
-//	private void putStringData(Page page, String data) {
-//		byte[] bytes = data.getBytes(StandardCharsets.US_ASCII);
-//		System.arraycopy(bytes, 0, page.data, 0, bytes.length);
-//	}
-//
-//	private String getStringData(Page page, int length) {
-//		byte[] bytes = Arrays.copyOfRange(page.data, 0, length);
-//		String str = new String(bytes, StandardCharsets.US_ASCII);
-//		return str;
-//	}
+	/**
+	 * An page in buffer (just allocated) can be got by <tt>getPage</tt>,
+	 * without pinning it twice.
+	 */
+	@Test
+	public void testPinUnpin_allocateAndGet() {
+		Page page = pagedFile.allocatePage();
+		pagedFile.getPage(page.num);
+		pagedFile.unpinPage(page);
+	}
+
+	/**
+	 * A page in buffer can be got another time by <tt>getPage</tt>, without
+	 * pinning it twice.
+	 */
+	@Test
+	public void testPinUnpin_getTwice() {
+		Page page = pagedFile.allocatePage();
+		pagedFile.unpinPage(page);
+		reOpen();
+		pagedFile.getPage(0);
+		pagedFile.getPage(0);
+		pagedFile.unpinPage(0);
+	}
+
+	/**
+	 * A page <b>can</b> be unpinned twice.
+	 */
+	@Test
+	public void testPinUnpin_unpinTwice() {
+		int N = allocatePages(pagedFile);
+		for (int i = 0; i < N; i++) {
+			pagedFile.unpinPage(i);
+			pagedFile.unpinPage(i);
+		}
+	}
+
+	/**
+	 * A page can be pinned again by <tt>getPage</tt> after it is unpinned.
+	 */
+	@Test
+	public void testPinUnpin_unpinAndGet() {
+		Page page = pagedFile.allocatePage();
+		pagedFile.unpinPage(page);
+		pagedFile.getPage(page.num);
+		// Note: we can only mark a pinned page as dirty.
+		pagedFile.markDirty(page);
+		pagedFile.unpinPage(page);
+	}
 
 	/**
 	 * All (unpinned) pages are written back to disk when closing the paged

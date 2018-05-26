@@ -249,7 +249,10 @@ public class PagedFile {
 	private Page readPage(int pageNum) {
 		try {
 			if (buffer.contains(pageNum)) {
-				return buffer.get(pageNum);
+				Page page = buffer.get(pageNum);
+				// If the page is unpinned before, pin it again.
+				buffer.pinAgainIfNot(page);
+				return page;
 			} else {
 				Page page = readPageFromFile(pageNum);
 				buffer.putAndPin(page);

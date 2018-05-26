@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class PagedFilePageTest {
@@ -370,5 +371,59 @@ public class PagedFilePageTest {
 		Page nextOfPreviousPage = pagedFile.getNextPage(previousPage.num);
 		assertEquals(pageNum, nextOfPreviousPage.num);
 		unpinPages(pagedFile, N, Arrays.asList(pageNum - 1, pageNum + 1));
+	}
+
+	/**
+	 * When iterate pages by <tt>getNextPage</tt>, the pageNums is increasing,
+	 * skipping disposed pages.
+	 */
+	@Test
+	public void testIteratePages_increasing() {
+		int N = allocatePages(pagedFile);
+		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
+		Page firstPage = pagedFile.getFirstPage();
+		Page lastPage = pagedFile.getLastPage();
+		int i = firstPage.num;
+		// Iterate from the first page (inclusive) to the last page (exclusive).
+		while (i < lastPage.num) {
+			{
+				// User handles page[i] here.
+			}
+			Page nextPage = pagedFile.getNextPage(i);
+			assertTrue(nextPage.num > i);
+			assertTrue(!disposedPageNums.contains(nextPage.num));
+			i = nextPage.num;
+		}
+		{
+			// User handles the last page here.
+		}
+		unpinPages(pagedFile, N, disposedPageNums);
+	}
+
+	/**
+	 * When iterate pages by <tt>getPreviousPage</tt>, the pageNums is
+	 * decreasing, skipping disposed pages.
+	 */
+	@Test
+	public void testIteratePages_decreasing() {
+		int N = allocatePages(pagedFile);
+		Deque<Integer> disposedPageNums = disposePages(pagedFile, N);
+		Page lastPage = pagedFile.getLastPage();
+		Page firstPage = pagedFile.getFirstPage();
+		int i = lastPage.num;
+		// Iterate from the last page (inclusive) to the first page (exclusive).
+		while (i > firstPage.num) {
+			{
+				// User handles page[i] here.
+			}
+			Page previousPage = pagedFile.getPreviousPage(i);
+			assertTrue(previousPage.num < i);
+			assertTrue(!disposedPageNums.contains(previousPage.num));
+			i = previousPage.num;
+		}
+		{
+			// User handles the first page here.
+		}
+		unpinPages(pagedFile, N, disposedPageNums);
 	}
 }
