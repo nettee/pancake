@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.page;
 
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
@@ -9,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import static com.google.common.base.Preconditions.checkState;
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -184,18 +186,18 @@ public class PagedFileBufferTest {
 	}
 
 	/**
-	 * All (unpinned) pages are written back to disk when closing the paged
-	 * file.
+	 * All dirty (unpinned) pages are written back to disk when closing the
+	 * paged file.
 	 */
 	@Test
-	public void testWriteBack() {
+	public void testWriteBack_dirty_noForce() {
 		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		{
 			Page page = pagedFile.allocatePage();
 			pagedFile.markDirty(page);
 			putStringData(page, str);
 			pagedFile.unpinPage(page);
-			// Do not force this page
+			// Do not force this page.
 		}
 		reOpen();
 		{
@@ -206,8 +208,37 @@ public class PagedFileBufferTest {
 		}
 	}
 
+	/**
+	 * A page is no longer dirty after <tt>forcePage</tt>. The data written
+	 * after <tt>forcePage</tt> will not be written back to disk.
+	 */
 	@Test
-	public void testForcePage() {
+	public void testWriteBack_notDirtyAfterForce() {
+		String str1 = "ABCDEFG-HIJKLMN-OPQRST-UVWXYZ";
+		String str2 = "OPQRST-UVWXYZ-ABCDEFG-HIJKLMN";
+		checkState(str1.length() == str2.length());
+		int len = str1.length();
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
+			putStringData(page, str1);
+			pagedFile.forcePage(page.num);
+			// The page is no longer dirty.
+			putStringData(page, str2);
+			pagedFile.unpinPage(page);
+			// Do not force this page.
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str = getStringData(page, len);
+			assertEquals(str1, str);
+			pagedFile.unpinPage(page);
+		}
+	}
+
+	@Test
+	public void testWriteBack_dirty_force() {
 		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		{
 			Page page = pagedFile.allocatePage();

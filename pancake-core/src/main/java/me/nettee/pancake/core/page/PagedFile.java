@@ -394,7 +394,8 @@ public class PagedFile {
 		}
 		writeBack(pageNum);
 
-		// TODO remove dirty mark
+		Page page = buffer.get(pageNum);
+		page.dirty = false;
 	}
 
 	/**

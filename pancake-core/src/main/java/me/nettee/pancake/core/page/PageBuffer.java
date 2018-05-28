@@ -143,7 +143,6 @@ class PageBuffer {
         return unpinnedPages;
     }
 
-    // TODO what if an unpinned page is got latter?
     Page get(int pageNum) {
         return buf.get(pageNum);
     }
