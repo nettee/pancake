@@ -54,6 +54,7 @@ public class RecordFile {
 		PagedFile pagedFile = PagedFile.create(file);
 
 		RecordFile recordFile = new RecordFile(pagedFile);
+		// TODO move to method metadata.init()
 		recordFile.metadata.recordSize = recordSize;
 		recordFile.metadata.dataPageStartingNum = 1;
 		recordFile.metadata.numOfRecords = 0;
@@ -61,18 +62,21 @@ public class RecordFile {
 		recordFile.metadata.numOfRecordsInOnePage = (Page.DATA_SIZE - RecordPage.HEADER_SIZE) / recordSize;
 		recordFile.metadata.firstFreePage = Metadata.NO_FREE_PAGE;
 
+		// TODO change to checkState
 		if (pagedFile.getNumOfPages() != 0) {
 			throw new RecordFileException("created paged file is not empty");
 		}
 		Page page = pagedFile.allocatePage();
 		pagedFile.markDirty(page);
 		recordFile.metadata.write(page.getData());
+		// TODO unpin page
 		return recordFile;
 	}
 
 	public static RecordFile open(File file) {
 		PagedFile pagedFile = PagedFile.open(file);
 
+		// TODO change to pagedFile.getNumOfPages() < metadata.dataPageOffset
 		if (pagedFile.getNumOfPages() == 0) {
 			throw new RecordFileException("opened paged file is empty");
 		}
@@ -80,6 +84,7 @@ public class RecordFile {
 
 		RecordFile recordFile = new RecordFile(pagedFile);
 		recordFile.metadata.read(page.getData());
+		// TODO unpin page
 		return recordFile;
 	}
 
