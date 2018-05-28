@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.page;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -7,6 +8,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
+
+import static com.google.common.base.Preconditions.checkState;
 
 public class PagedFileTestUtils {
 
@@ -85,6 +88,36 @@ public class PagedFileTestUtils {
             }
             pagedFile.unpinPage(i);
         }
+    }
+
+    static String randomString() {
+        return randomString(50);
+    }
+
+    static String randomString(int length) {
+        return RandomStringUtils.randomAlphabetic(length);
+    }
+
+    static class TwoStrings {
+        String str1;
+        String str2;
+        int len;
+        private TwoStrings(String str1, String str2) {
+            checkState(str1.length() == str2.length());
+            this.str1 = str1;
+            this.str2 = str2;
+            len = str1.length();
+        }
+    }
+
+    static TwoStrings randomTwoStrings() {
+        int len = 50;
+        String str1 = randomString(len);
+        String str2;
+        do {
+            str2 = randomString(len);
+        } while (str2.equals(str1));
+        return new TwoStrings(str1, str2);
     }
 
     /**

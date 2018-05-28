@@ -1,18 +1,14 @@
 package me.nettee.pancake.core.page;
 
-import com.google.common.base.Preconditions;
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 
 import static com.google.common.base.Preconditions.checkState;
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
 public class PagedFileBufferTest {
@@ -22,7 +18,6 @@ public class PagedFileBufferTest {
 
 	@BeforeClass
 	public static void setUpBeforeClass() {
-
 	}
 
 	@Before
@@ -191,19 +186,101 @@ public class PagedFileBufferTest {
 	 */
 	@Test
 	public void testWriteBack_dirty_noForce() {
-		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		String data = randomString();
 		{
 			Page page = pagedFile.allocatePage();
 			pagedFile.markDirty(page);
-			putStringData(page, str);
+			putStringData(page, data);
 			pagedFile.unpinPage(page);
 			// Do not force this page.
 		}
 		reOpen();
 		{
 			Page page = pagedFile.getPage(0);
-			String str2 = getStringData(page, str.length());
-			assertEquals(str, str2);
+			String str = getStringData(page, data.length());
+			assertEquals(data, str);
+			pagedFile.unpinPage(page);
+		}
+	}
+
+	/**
+	 * All dirty (unpinned) pages are ensured to be written back to disk if
+	 * they are flushed via <tt>forcePage</tt>.
+	 */
+	@Test
+	public void testWriteBack_dirty_force() {
+		String data = randomString();
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
+			putStringData(page, data);
+			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str = getStringData(page, data.length());
+			assertEquals(data, str);
+			pagedFile.unpinPage(page);
+		}
+	}
+
+	/**
+	 * A non-dirty page cannot be written back to disk.
+	 */
+	@Test
+	public void testWriteBack_notDirty_noForce() {
+		TwoStrings data = randomTwoStrings();
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
+			putStringData(page, data.str1);
+			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getFirstPage();
+			putStringData(page, data.str2);
+			// no force page here
+			pagedFile.unpinPage(page);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str = getStringData(page, data.len);
+			assertEquals(data.str1, str);
+			pagedFile.unpinPage(page);
+		}
+	}
+
+	/**
+	 * A non-dirty page cannot be flushed to disk via <tt>forcePage</tt>.
+	 */
+	@Test
+	public void testWriteBack_notDirty_force() {
+		TwoStrings data = randomTwoStrings();
+		{
+			Page page = pagedFile.allocatePage();
+			pagedFile.markDirty(page);
+			putStringData(page, data.str1);
+			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.allocatePage();
+			// Do not mark page as dirty.
+			putStringData(page, data.str2);
+			pagedFile.forcePage(page.num);
+			pagedFile.unpinPage(page);
+		}
+		reOpen();
+		{
+			Page page = pagedFile.getPage(0);
+			String str = getStringData(page, data.len);
+			assertEquals(data.str1, str);
 			pagedFile.unpinPage(page);
 		}
 	}
@@ -214,80 +291,24 @@ public class PagedFileBufferTest {
 	 */
 	@Test
 	public void testWriteBack_notDirtyAfterForce() {
-		String str1 = "ABCDEFG-HIJKLMN-OPQRST-UVWXYZ";
-		String str2 = "OPQRST-UVWXYZ-ABCDEFG-HIJKLMN";
-		checkState(str1.length() == str2.length());
-		int len = str1.length();
+		TwoStrings data = randomTwoStrings();
 		{
 			Page page = pagedFile.allocatePage();
 			pagedFile.markDirty(page);
-			putStringData(page, str1);
+			putStringData(page, data.str1);
 			pagedFile.forcePage(page.num);
 			// The page is no longer dirty.
-			putStringData(page, str2);
+			putStringData(page, data.str2);
 			pagedFile.unpinPage(page);
 			// Do not force this page.
 		}
 		reOpen();
 		{
 			Page page = pagedFile.getPage(0);
-			String str = getStringData(page, len);
-			assertEquals(str1, str);
+			String str = getStringData(page, data.len);
+			assertEquals(data.str1, str);
 			pagedFile.unpinPage(page);
 		}
 	}
-
-	@Test
-	public void testWriteBack_dirty_force() {
-		String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		{
-			Page page = pagedFile.allocatePage();
-			pagedFile.markDirty(page.num);
-			putStringData(page, str);
-			pagedFile.forcePage(page.num);
-			pagedFile.unpinPage(page.num);
-		}
-		reOpen();
-		{
-			Page page = pagedFile.getPage(0);
-			String str2 = getStringData(page, str.length());
-			assertEquals(str, str2);
-			pagedFile.unpinPage(page.num);
-		}
-	}
-
-	@Test
-	public void testForcePage_noForce() {
-		String str1 = "ABCDEFG-HIJKLMN-OPQRST-UVWXYZ";
-		String str2 = "OPQRST-UVWXYZ-ABCDEFG-HIJKLMN";
-		{
-			Page page = pagedFile.allocatePage();
-			pagedFile.unpinPage(page);
-		}
-		reOpen();
-		{
-			Page page = pagedFile.getFirstPage();
-			pagedFile.markDirty(page.num);
-			putStringData(page, str1);
-			pagedFile.forcePage(page.num);
-			pagedFile.unpinPage(page);
-		}
-		reOpen();
-		{
-			Page page = pagedFile.getFirstPage();
-			putStringData(page, str2);
-			// no force page here
-			pagedFile.unpinPage(page);
-		}
-		reOpen();
-		{
-			Page page = pagedFile.getFirstPage();
-			String str = getStringData(page, str1.length());
-			assertEquals(str1, str);
-			pagedFile.unpinPage(page);
-		}
-	}
-
-	// TODO more test cases
 
 }
