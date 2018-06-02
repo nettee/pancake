@@ -5,7 +5,6 @@ import java.util.*;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
-// TODO complete buffer implementation for PagedFile
 class PageBuffer {
 
     static final int BUFFER_SIZE = 40;
@@ -41,11 +40,11 @@ class PageBuffer {
             if (hasUnpinnedPages()) {
                 int pageNum = getOneUnpinnedPage();
                 writeBackAndRemove(pageNum);
-                checkState(!isFull());
             } else {
                 throw new PagedFileException("buffer pool is already full");
             }
         }
+        checkState(!isFull());
         buf.put(page.num, page);
         pin(page);
     }
@@ -127,7 +126,7 @@ class PageBuffer {
         return !unpinnedPages.isEmpty();
     }
 
-    // TODO apply LIFO policy
+    // LRU buffer policy: the oldest unpinned pages will be removed first.
     private int getOneUnpinnedPage() {
         checkState(!unpinnedPages.isEmpty());
         return unpinnedPages.iterator().next();
