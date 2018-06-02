@@ -143,6 +143,7 @@ public class RecordFile {
 		}
 		logger.debug("inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
 				new String(data, StandardCharsets.US_ASCII));
+		unpinPage(recordPage);
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
@@ -156,6 +157,7 @@ public class RecordFile {
 	public byte[] getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		byte[] record = recordPage.get(rid.slotNum);
+		unpinPage(recordPage);
 		return record;
 	}
 
@@ -171,6 +173,7 @@ public class RecordFile {
 	public void updateRecord(RID rid, byte[] data) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.update(rid.slotNum, data);
+		unpinPage(recordPage);
 	}
 
 	public void deleteRecord(RID rid) {
@@ -181,6 +184,7 @@ public class RecordFile {
 			recordPage.setNextFreePage(metadata.firstFreePage);
 			metadata.firstFreePage = recordPage.getPageNum();
 		}
+		unpinPage(recordPage); // TODO is this correct?
 	}
 
 	/**
@@ -244,6 +248,10 @@ public class RecordFile {
 			return iterator.next();
 		}
 
+	}
+
+	private void unpinPage(RecordPage recordPage) {
+		file.unpinPage(recordPage.getPage());
 	}
 
 	public void setDebug(boolean debug) {
