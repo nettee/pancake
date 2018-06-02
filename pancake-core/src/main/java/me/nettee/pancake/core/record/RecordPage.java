@@ -1,18 +1,14 @@
 package me.nettee.pancake.core.record;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import me.nettee.pancake.core.page.Page;
+
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.function.Predicate;
-
-import me.nettee.pancake.core.page.Page;
 
 public class RecordPage {
 
@@ -300,15 +296,14 @@ public class RecordPage {
 		return ab;
 	}
 
-	@Deprecated
-	public Page getPage() {
+	Page getPage() {
 		return page;
 	}
 	
 	public int getPageNum() {
 		return page.getNum();
 	}
-	
+
 	public void setDebug(boolean debug) {
 		this.debug = debug;
 	}

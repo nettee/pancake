@@ -1,28 +1,24 @@
 package me.nettee.pancake.core.record;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.Map.Entry;
+
+import static org.junit.Assert.assertEquals;
+
 @RunWith(Parameterized.class)
-@Ignore
 public class RecordFileCrudTest {
 
 	private static final int RECORD_SIZE = 8;
@@ -52,7 +48,7 @@ public class RecordFileCrudTest {
 	public ExpectedException thrown = ExpectedException.none();
 
 	@Before
-	public void setUp() throws Exception {
+	public void setUp() {
 		File file = new File("/tmp/c.db");
 		if (file.exists()) {
 			file.delete();

@@ -1,24 +1,17 @@
 package me.nettee.pancake.core.record;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
-import java.util.function.Predicate;
-
-import org.slf4j.ILoggerFactory;
+import me.nettee.pancake.core.page.Page;
+import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import me.nettee.pancake.core.page.Page;
-import me.nettee.pancake.core.page.PagedFile;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.function.Predicate;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * The first page of record file serves as header page (which stores metadata),
@@ -66,10 +59,12 @@ public class RecordFile {
 		if (pagedFile.getNumOfPages() != 0) {
 			throw new RecordFileException("created paged file is not empty");
 		}
-		Page page = pagedFile.allocatePage();
-		pagedFile.markDirty(page);
-		recordFile.metadata.write(page.getData());
-		// TODO unpin page
+
+		Page headerPage = pagedFile.allocatePage();
+		pagedFile.markDirty(headerPage);
+		recordFile.metadata.write(headerPage.getData());
+		pagedFile.unpinPage(headerPage);
+
 		return recordFile;
 	}
 
@@ -80,11 +75,12 @@ public class RecordFile {
 		if (pagedFile.getNumOfPages() == 0) {
 			throw new RecordFileException("opened paged file is empty");
 		}
-		Page page = pagedFile.getFirstPage();
 
+		Page headerPage = pagedFile.getFirstPage();
 		RecordFile recordFile = new RecordFile(pagedFile);
-		recordFile.metadata.read(page.getData());
-		// TODO unpin page
+		recordFile.metadata.read(headerPage.getData());
+		pagedFile.unpinPage(headerPage);
+
 		return recordFile;
 	}
 
@@ -147,6 +143,7 @@ public class RecordFile {
 		}
 		logger.debug("inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
 				new String(data, StandardCharsets.US_ASCII));
+		unpinPage(recordPage);
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
@@ -160,6 +157,7 @@ public class RecordFile {
 	public byte[] getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		byte[] record = recordPage.get(rid.slotNum);
+		unpinPage(recordPage);
 		return record;
 	}
 
@@ -175,6 +173,7 @@ public class RecordFile {
 	public void updateRecord(RID rid, byte[] data) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.update(rid.slotNum, data);
+		unpinPage(recordPage);
 	}
 
 	public void deleteRecord(RID rid) {
@@ -185,6 +184,7 @@ public class RecordFile {
 			recordPage.setNextFreePage(metadata.firstFreePage);
 			metadata.firstFreePage = recordPage.getPageNum();
 		}
+		unpinPage(recordPage); // TODO is this correct?
 	}
 
 	/**
@@ -248,6 +248,10 @@ public class RecordFile {
 			return iterator.next();
 		}
 
+	}
+
+	private void unpinPage(RecordPage recordPage) {
+		file.unpinPage(recordPage.getPage());
 	}
 
 	public void setDebug(boolean debug) {

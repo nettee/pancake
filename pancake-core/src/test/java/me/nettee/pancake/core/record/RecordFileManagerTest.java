@@ -1,21 +1,19 @@
 package me.nettee.pancake.core.record;
 
-import java.io.File;
-
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-@Ignore
+import java.io.File;
+
 public class RecordFileManagerTest {
 
 	private static final int RECORD_SIZE = 8;
 	private File file;
 
 	@Before
-	public void setUp() throws Exception {
+	public void setUp() {
 		file = new File("/tmp/c.db");
 		if (file.exists()) {
 			file.delete();
