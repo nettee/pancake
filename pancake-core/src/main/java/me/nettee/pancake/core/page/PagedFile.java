@@ -7,8 +7,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -99,7 +101,8 @@ public class PagedFile {
 		}
 		N = (int) (file.length() / Page.PAGE_SIZE);
 
-		// Collect disposed pages and push their nums orderly into the stack.
+		// Restore the order of disposed pages. Their pageNums are pushed
+		// orderly into the stack.
 		int[] disposedPageNums = new int[N+1];
 		for (int i = 0; i <= N; i++) {
 			disposedPageNums[i] = -1;
@@ -225,11 +228,17 @@ public class PagedFile {
 			}
 			buffer.removeWithoutWriteBack(pageNum); // can throw exception
 		}
-		// TODO fill the page with default byte
 		try {
 			file.seek(pageNum * Page.PAGE_SIZE);
-			// TODO explain why write this number
+			// Write at the pageNum position with the opposite number of the
+			// disposed order, so that (1) we can identify disposed pages with
+			// a negative pageNum; (2) we can restore the disposed order when
+			// re-open the file.
 			file.writeInt(-1 - disposedPageNumsStack.size());
+			// Fill the file with default bytes for ease of debugging.
+			byte[] data = new byte[Page.DATA_SIZE];
+			Arrays.fill(data, Page.DEFAULT_BYTE);
+			file.write(data);
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
 			throw new PagedFileException(msg, e);
@@ -407,9 +416,9 @@ public class PagedFile {
 	 * @throws PagedFileException
 	 */
 	public void forceAllPages() {
-		// TODO only force pages in the buffer pool
-		for (int i = 0; i < N; i++) {
-			forcePage(i);
+		// Force all the pages in the buffer pool.
+		for (int pageNum : buffer.getAllPages()) {
+			forcePage(pageNum);
 		}
 	}
 

@@ -11,6 +11,8 @@ public class Page {
     public static final int PAGE_SIZE = 4096;
     public static final int DATA_SIZE = 4092;
 
+    static final byte DEFAULT_BYTE = (byte) 0xee;
+
     int num;
     boolean pinned = false;
     boolean dirty = false;
@@ -19,8 +21,8 @@ public class Page {
     Page(int num) {
         this.num = num;
         this.data = new byte[DATA_SIZE];
-        // Fill the memory with 0xee for ease of testing.
-        Arrays.fill(this.data, (byte) 0xee);
+        // Fill the page with default bytes for ease of debugging.
+        Arrays.fill(this.data, DEFAULT_BYTE);
     }
 
     public int getNum() {
