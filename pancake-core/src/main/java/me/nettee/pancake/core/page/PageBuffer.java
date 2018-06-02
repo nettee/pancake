@@ -101,7 +101,6 @@ class PageBuffer {
     }
 
     // A page can be unpinned twice.
-    // TODO check if this works when a page is unpinned twice
     private void unpin(Page page) {
         page.pinned = false;
         pinnedPages.remove(page.num);
@@ -141,6 +140,13 @@ class PageBuffer {
 
     Set<Integer> getUnpinnedPages() {
         return unpinnedPages;
+    }
+
+    Set<Integer> getAllPages() {
+        Set<Integer> allPages = new HashSet<>();
+        allPages.addAll(pinnedPages);
+        allPages.addAll(unpinnedPages);
+        return allPages;
     }
 
     Page get(int pageNum) {
