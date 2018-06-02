@@ -12,6 +12,7 @@ import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * The first page of record file serves as header page (which stores metadata),
@@ -45,40 +46,31 @@ public class RecordFile {
 		checkArgument(recordSize >= 4, "record size less than 4 is currently not supported");
 
 		PagedFile pagedFile = PagedFile.create(file);
+		checkState(pagedFile.getNumOfPages() == 0, "created paged file is not empty");
 
 		RecordFile recordFile = new RecordFile(pagedFile);
-		// TODO move to method metadata.init()
-		recordFile.metadata.recordSize = recordSize;
-		recordFile.metadata.dataPageStartingNum = 1;
-		recordFile.metadata.numOfRecords = 0;
-		recordFile.metadata.numOfPages = 1;
-		recordFile.metadata.numOfRecordsInOnePage = (Page.DATA_SIZE - RecordPage.HEADER_SIZE) / recordSize;
-		recordFile.metadata.firstFreePage = Metadata.NO_FREE_PAGE;
-
-		// TODO change to checkState
-		if (pagedFile.getNumOfPages() != 0) {
-			throw new RecordFileException("created paged file is not empty");
-		}
+		recordFile.metadata.init(recordSize);
 
 		Page headerPage = pagedFile.allocatePage();
 		pagedFile.markDirty(headerPage);
-		recordFile.metadata.write(headerPage.getData());
+		recordFile.metadata.writeTo(headerPage.getData());
 		pagedFile.unpinPage(headerPage);
 
 		return recordFile;
 	}
 
 	public static RecordFile open(File file) {
-		PagedFile pagedFile = PagedFile.open(file);
+		checkNotNull(file);
 
-		// TODO change to pagedFile.getNumOfPages() < metadata.dataPageOffset
+		PagedFile pagedFile = PagedFile.open(file);
 		if (pagedFile.getNumOfPages() == 0) {
 			throw new RecordFileException("opened paged file is empty");
 		}
 
-		Page headerPage = pagedFile.getFirstPage();
 		RecordFile recordFile = new RecordFile(pagedFile);
-		recordFile.metadata.read(headerPage.getData());
+
+		Page headerPage = pagedFile.getFirstPage();
+		recordFile.metadata.readFrom(headerPage.getData());
 		pagedFile.unpinPage(headerPage);
 
 		return recordFile;
@@ -112,7 +104,7 @@ public class RecordFile {
 			recordPage.setDebug(true);
 		}
 		buffer.put(recordPage.getPageNum(), recordPage);
-		metadata.numOfPages++;
+		metadata.numPages++;
 		return recordPage;
 	}
 
@@ -137,7 +129,7 @@ public class RecordFile {
 		RecordPage recordPage = getFreeRecordPage();
 		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(data);
-		metadata.numOfRecords += 1;
+		metadata.numRecords += 1;
 		if (recordPage.isFull()) {
 			metadata.firstFreePage = recordPage.getNextFreePage();
 		}
@@ -179,7 +171,7 @@ public class RecordFile {
 	public void deleteRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.delete(rid.slotNum);
-		metadata.numOfRecords -= 1;
+		metadata.numRecords -= 1;
 		if (recordPage.isEmpty()) {
 			recordPage.setNextFreePage(metadata.firstFreePage);
 			metadata.firstFreePage = recordPage.getPageNum();
@@ -221,9 +213,9 @@ public class RecordFile {
 		RecordIterator(Predicate<byte[]> predicate) {
 			this.predicate = Optional.ofNullable(predicate);
 			List<byte[]> allRecords = new ArrayList<>();
-			logger.debug("dataPageStartingNum = {}", metadata.dataPageStartingNum);
-			logger.debug("numOfPages = {}", metadata.numOfPages);
-			for (int pageNum = metadata.dataPageStartingNum; pageNum < metadata.numOfPages; pageNum++) {
+			logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
+			logger.debug("numOfPages = {}", metadata.numPages);
+			for (int pageNum = metadata.dataPageOffset; pageNum < metadata.numPages; pageNum++) {
 				RecordPage recordPage = getRecordPage(pageNum);
 				logger.debug("page[{}]", pageNum);
 				Iterator<byte[]> recordIterator = recordPage.scan(predicate);

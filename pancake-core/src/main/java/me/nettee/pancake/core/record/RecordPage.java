@@ -231,6 +231,7 @@ public class RecordPage {
 	 * @param slotNum slot number
 	 * @return record
 	 */
+	// TODO return a copy of data
 	byte[] get(int slotNum) {
 		checkRecordExistence(slotNum);
 		byte[] data = records[slotNum].data; 
@@ -243,7 +244,7 @@ public class RecordPage {
 	/**
 	 * Update record.
 	 * @param slotNum slot number
-	 * @param replacement record
+	 * @param data record
 	 */
 	void update(int slotNum, byte[] data) {
 		checkRecordExistence(slotNum);
