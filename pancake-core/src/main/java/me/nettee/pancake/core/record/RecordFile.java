@@ -45,6 +45,8 @@ public class RecordFile {
 		checkNotNull(file);
 		checkArgument(recordSize >= 4, "record size less than 4 is currently not supported");
 
+		logger.info("Creating RecordFile {}", file.getPath());
+
 		PagedFile pagedFile = PagedFile.create(file);
 		checkState(pagedFile.getNumOfPages() == 0, "created paged file is not empty");
 
@@ -55,12 +57,15 @@ public class RecordFile {
 		pagedFile.markDirty(headerPage);
 		recordFile.metadata.writeTo(headerPage.getData());
 		pagedFile.unpinPage(headerPage);
+		logger.info("Header page (page[{}]) initialized", headerPage.getNum());
 
 		return recordFile;
 	}
 
 	public static RecordFile open(File file) {
 		checkNotNull(file);
+
+		logger.info("Opening RecordFile {}", file.getPath());
 
 		PagedFile pagedFile = PagedFile.open(file);
 		if (pagedFile.getNumOfPages() == 0) {
@@ -77,6 +82,7 @@ public class RecordFile {
 	}
 
 	public void close() {
+		logger.info("Closing RecordFile");
 		for (RecordPage recordPage : buffer.values()) {
 			recordPage.persist();
 		}

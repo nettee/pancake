@@ -1,5 +1,8 @@
 package me.nettee.pancake.core.page;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,10 +10,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.Set;
+import java.util.*;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -65,6 +65,7 @@ public class PagedFile {
 	public static PagedFile create(File file) {
 		checkNotNull(file);
 		checkArgument(!file.exists(), "file already exists: %s", file.getAbsolutePath());
+		logger.info("Creating PagedFile {}", file.getPath());
 		PagedFile pagedFile = new PagedFile(file);
 		pagedFile.initPages();
 		return pagedFile;
@@ -82,6 +83,7 @@ public class PagedFile {
 	public static PagedFile open(File file) {
 		checkNotNull(file);
 		checkArgument(file.exists(), "file does not exist: %s", file.getAbsolutePath());
+		logger.info("Opening PagedFile {}", file.getPath());
 		PagedFile pagedFile = new PagedFile(file);
 		try {
 			pagedFile.loadPages();
@@ -97,7 +99,7 @@ public class PagedFile {
 
 	private void loadPages() throws IOException {
 		if (file.length() % Page.PAGE_SIZE != 0) {
-			logger.warn("file length is not dividable by " + Page.PAGE_SIZE);
+			logger.warn("file length is not dividable by {}", Page.PAGE_SIZE);
 		}
 		N = (int) (file.length() / Page.PAGE_SIZE);
 
@@ -128,17 +130,20 @@ public class PagedFile {
 	 * to the disk before the file is closed.
 	 */
 	public void close() {
+		logger.info("Closing PagedFile");
 		if (buffer.hasPinnedPages()) {
-			System.out.printf("still has pinned pages: %s\n",
-					buffer.getPinnedPages().stream()
-							.map(String::valueOf)
-							.collect(Collectors.joining(", ", "[", "]")));
-			throw new PagedFileException("cannot close paged file: there are pinned pages in the buffer pool");
+			logger.error("Still has pinned pages[{}]", pageRangeRepr(buffer.getPinnedPages()));
+			throw new PagedFileException("Fail to close paged file: there are pinned pages in the buffer pool");
 		}
 
-		for (int pageNum : buffer.getUnpinnedPages()) {
+		Set<Integer> unpinnedPages = buffer.getUnpinnedPages();
+		for (int pageNum : unpinnedPages) {
 			writeBack(buffer.get(pageNum));
 		}
+		if (!unpinnedPages.isEmpty()) {
+			logger.info("Written back unpinned pages[{}]", pageRangeRepr(unpinnedPages));
+		}
+
 
 		try {
 			file.close();
@@ -192,6 +197,7 @@ public class PagedFile {
 		} else {
 			pageNum = disposedPageNumsStack.pop();
 		}
+		logger.info("Allocating page[{}]", pageNum);
 		Page page = new Page(pageNum);
 		try {
 			writePageToFile(page);
@@ -199,8 +205,12 @@ public class PagedFile {
 			String msg = String.format("fail to allocate page[%d]", pageNum);
 			throw new PagedFileException(msg, e);
 		}
-		buffer.putAndPin(page);
-		logger.debug(String.format("allocate page[%d]", pageNum));
+		try {
+			buffer.putAndPin(page);
+		} catch (FullBufferException e) {
+			logger.error(String.format("Fail to allocate page[%d]", page.num), e);
+			throw e;
+		}
 		return page;
 	}
 
@@ -279,7 +289,9 @@ public class PagedFile {
 			String msg = String.format("cannot get a disposed page[%d]", pageNum);
 			throw new PagedFileException(msg);
 		}
-		return readPage(pageNum);
+		Page page = readPage(pageNum);
+		logger.info("Got page[{}]", pageNum);
+		return page;
 	}
 
 	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
@@ -308,19 +320,27 @@ public class PagedFile {
 	}
 
 	public Page getFirstPage() {
-		return searchPageIncreasing(0, N - 1, "no first page");
+		Page page = searchPageIncreasing(0, N - 1, "no first page");
+		logger.info("Got page[{}] (first page)", page.num);
+		return page;
 	}
 
 	public Page getLastPage() {
-		return searchPageDecreasing(N - 1, 0, "no last page");
+		Page page = searchPageDecreasing(N - 1, 0, "no last page");
+		logger.info("Got page[{}] (last page)", page.num);
+		return page;
 	}
 
 	public Page getPreviousPage(int currentPageNum) {
-		return searchPageDecreasing(currentPageNum - 1, 0, "no previous page");
+		Page page = searchPageDecreasing(currentPageNum - 1, 0, "no previous page");
+		logger.info("Got page[{}] (previous page of page[{}]", page.num, currentPageNum);
+		return page;
 	}
 
 	public Page getNextPage(int currentPageNum) {
-		return searchPageIncreasing(currentPageNum + 1, N - 1, "no next page");
+		Page page = searchPageIncreasing(currentPageNum + 1, N - 1, "no next page");
+		logger.info("Got page[{}] (next page of page[{}]", page.num, currentPageNum);
+		return page;
 	}
 
 	/**
@@ -332,13 +352,18 @@ public class PagedFile {
 	public void markDirty(int pageNum) {
 		checkPageNumRange(pageNum);
 		if (!buffer.contains(pageNum)) {
-			throw new PagedFileException(String.format("mark page[%d] as dirty which is not in buffer pool", pageNum));
+			String msg = String.format("Try to mark page[%d] as dirty which is not in buffer pool", pageNum);
+			logger.error(msg);
+			throw new PagedFileException(msg);
 		}
 		Page page = buffer.get(pageNum);
 		if (!page.pinned) {
-			throw new PagedFileException(String.format("mark an unpinned page[%d] as dirty", pageNum));
+			String msg = String.format("Try to mark an unpinned page[%d] as dirty", pageNum);
+			logger.error(msg);
+			throw new PagedFileException(msg);
 		}
 		page.dirty = true;
+		logger.info("Marked page[{}] as dirty in buffer", page.num);
 	}
 
 	/**
@@ -360,6 +385,7 @@ public class PagedFile {
 		checkPageNumRange(pageNum);
 		if (buffer.contains(pageNum)) {
 			buffer.unpin(pageNum);
+			logger.info("Unpinned page[{}] in buffer", pageNum);
 		}
 	}
 
@@ -382,6 +408,47 @@ public class PagedFile {
 		}
 	}
 
+	/**
+	 * Mark that the pages specified by <tt>pageNums</tt> is no longer needed
+	 * in memory.
+	 * @param pageNums page numbers of the pages to unpin
+	 */
+	public void unpinPages(Set<Integer> pageNums) {
+		Set<Integer> unpinnedPageNums = new HashSet<>();
+		for (int pageNum : pageNums) {
+			checkPageNumRange(pageNum);
+			if (buffer.contains(pageNum)) {
+				buffer.unpin(pageNum);
+				unpinnedPageNums.add(pageNum);
+			}
+		}
+		logger.info("Unpinned pages[{}] in buffer", pageRangeRepr(unpinnedPageNums));
+	}
+
+	private static String pageRangeRepr(Set<Integer> pageNumSet) {
+		Integer[] pageNums = pageNumSet.toArray(new Integer[pageNumSet.size()]);
+		List<Pair<Integer, Integer>> ranges = new ArrayList<>();
+		int i = 0;
+		while (i < pageNums.length) {
+			int j = i;
+			while (j+1 < pageNums.length && pageNums[j+1] == pageNums[j] + 1) {
+				j++;
+			}
+			// pageNums[i..j] is continuous
+			ranges.add(new ImmutablePair<>(pageNums[i], pageNums[j]));
+			i = j + 1;
+		}
+		return ranges.stream().map(range -> {
+			int min = range.getLeft();
+			int max = range.getRight();
+			if (min == max) {
+				return String.valueOf(min);
+			} else {
+				return String.format("%d-%d", min, max);
+			}
+		}).collect(Collectors.joining(","));
+	}
+
 	void writeBack(int pageNum) {
 		checkState(buffer.contains(pageNum));
 		writeBack(buffer.get(pageNum));
@@ -398,13 +465,16 @@ public class PagedFile {
 	 */
 	public void forcePage(int pageNum) {
 		if (!buffer.contains(pageNum)) {
-			throw new PagedFileException(String.format(
-					"force page[%d], which is not in the buffer pool", pageNum));
+			String msg = String.format(
+					"Fail to force page[%d]: page not in buffer pool", pageNum);
+			logger.error(msg);
+			throw new PagedFileException(msg);
 		}
 		writeBack(pageNum);
 
 		Page page = buffer.get(pageNum);
 		page.dirty = false;
+		logger.info("Forced page[{}]", pageNum);
 	}
 
 	/**
@@ -417,9 +487,11 @@ public class PagedFile {
 	 */
 	public void forceAllPages() {
 		// Force all the pages in the buffer pool.
-		for (int pageNum : buffer.getAllPages()) {
+		Set<Integer> allPages = buffer.getAllPages();
+		for (int pageNum : allPages) {
 			forcePage(pageNum);
 		}
+		logger.info("Forced all pages[{}]", pageRangeRepr(allPages));
 	}
 
 }
