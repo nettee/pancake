@@ -2,6 +2,8 @@ package me.nettee.pancake.core.record;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -73,16 +75,16 @@ public class RecordFileCrudTest {
 
 	@Test
 	public void testGet() {
-		Map<RID, String> map = new HashMap<RID, String>();
+		List<Pair<RID, String>> records = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
 			byte[] str = str0.getBytes();
 			RID rid = rf.insertRecord(str);
-			map.put(rid, str0);
+			records.add(new ImmutablePair<>(rid, str0));
 		}
-		for (Entry<RID, String> entry : map.entrySet()) {
-			RID rid = entry.getKey();
-			String str0 = entry.getValue();
+		for (Pair<RID, String> record : records) {
+			RID rid = record.getLeft();
+			String str0 = record.getRight();
 			byte[] rec = rf.getRecord(rid);
 			String rec0 = new String(rec, StandardCharsets.US_ASCII);
 			assertEquals(str0, rec0);
@@ -124,7 +126,7 @@ public class RecordFileCrudTest {
 		}
 		Collections.shuffle(list);
 		for (RID rid : list) {
-			thrown.expect(RecordFileException.class);
+			thrown.expect(Exception.class);
 			rf.getRecord(rid);
 		}
 	}

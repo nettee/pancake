@@ -60,7 +60,7 @@ class PageBuffer {
         if (!page.pinned) {
             checkState(unpinnedPages.contains(page.num));
             pinAgain(page);
-            logger.info("Pineed again page[{}] in buffer", page.num);
+            logger.info("Pinned again page[{}] in buffer", page.num);
         }
     }
 

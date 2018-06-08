@@ -2,6 +2,8 @@ package me.nettee.pancake.core.record;
 
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -15,6 +17,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 public class RecordPage {
+
+	private static Logger logger = LoggerFactory.getLogger(RecordPage.class);
 
 	// Note: change the value when the structure of Header changes.
 	public static final int HEADER_SIZE = 20;
@@ -111,14 +115,30 @@ public class RecordPage {
 			bs.set(i, b);
 		}
 
+		String dump(int n) {
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < n; i++) {
+				char b = bs.get(i) ? '1' : '0';
+				sb.append(b);
+				if (i % 10 == 9) {
+					sb.append('|');
+					sb.append(i+1);
+					sb.append('|');
+				}
+			}
+			return sb.toString();
+		}
+
 	}
 
 	private final Page page;
 
 	private Header header;
 	private Bitset bitset;
+	@Deprecated
 	private Record[] records;
-	
+
+	@Deprecated
 	private boolean debug;
 
 	private RecordPage(Page page) {
@@ -178,16 +198,19 @@ public class RecordPage {
 		int n = (8 * pageCapacity - 7) / (8 * recordSize + 1) - 1;
 		header.capacity = n;
 		header.bitsetSize = (int) Math.ceil((double) n / 8);
+		logger.debug("header.capacity = {}", header.capacity);
+		logger.debug("header.bitsetSize = {}", header.bitsetSize);
 
 		bitset = Bitset.empty(n);
 		records = new Record[n];
+
+		writeHeaderToPage();
+		writeBitsetToPage();
 	}
 
 	private void load() {
-		byte[] headerByteArray = Arrays.copyOf(page.getData(), HEADER_SIZE);
-		header.fromByteArray(headerByteArray);
-		byte[] bitsetByteArray = Arrays.copyOfRange(page.getData(), HEADER_SIZE, header.bitsetSize);
-		bitset = Bitset.fromByteArray(bitsetByteArray);
+		readHeaderAndBitsetFromPage();
+
 		int n = header.capacity;
 		records = new Record[n];
 		for (int i = 0; i < n; i++) {
@@ -237,17 +260,35 @@ public class RecordPage {
 	}
 	
 	private void checkRecordExistence(int slotNum) {
-		if (bitset.get(slotNum) == false) {
-			throw new RecordFileException(String.format("record %d doest not exist", slotNum));
-		}
+		checkState(bitset.get(slotNum), String.format("record %d does not exist", slotNum));
 		checkRecordBufferConsistency(slotNum);
 	}
-	
+
+	@Deprecated
 	private void checkRecordBufferConsistency(int slotNum) {
 		boolean existsInBitset = bitset.get(slotNum);
 		boolean existsInRecordsArray = records[slotNum] != null;
 		checkState(existsInBitset == existsInRecordsArray,
 			String.format("inconsistent internal state at slot %d", slotNum));
+	}
+
+	private void readHeaderAndBitsetFromPage() {
+		byte[] headerByteArray = Arrays.copyOf(page.getData(), HEADER_SIZE);
+		header.fromByteArray(headerByteArray);
+		byte[] bitsetByteArray = Arrays.copyOfRange(page.getData(),
+				HEADER_SIZE,
+				HEADER_SIZE + header.bitsetSize);
+		bitset = Bitset.fromByteArray(bitsetByteArray);
+	}
+
+	private void writeHeaderToPage() {
+		byte[] headerBytes = header.toByteArray();
+		System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
+	}
+
+	private void writeBitsetToPage() {
+		byte[] bitsetBytes = bitset.toByteArray();
+		System.arraycopy(bitsetBytes, 0, page.getData(), HEADER_SIZE, bitsetBytes.length);
 	}
 
 	private byte[] readRecordFromPage(int slotNum) {
@@ -270,21 +311,26 @@ public class RecordPage {
 	 * @return slot number of inserted record
 	 */
 	int insert(byte[] data) {
+//		logger.debug("before insert: {}", bitset.dump(header.capacity));
 		int slotNum = 0;
 		// Find the first free slot
 		while (slotNum < header.capacity && bitset.get(slotNum)) {
 			slotNum++;
 		}
+//		logger.debug("Found slotNum = {}", slotNum);
 		checkState(slotNum < header.capacity,
 			"No free slot left in record page");
 		checkRecordBufferConsistency(slotNum);
 		writeRecordToPage(slotNum, data);
 		records[slotNum] = new Record(Arrays.copyOf(data, data.length)); // TODO remove this
 		bitset.set(slotNum);
+		writeBitsetToPage(); // TODO workaround
 		header.numRecords++;
+		writeHeaderToPage(); // TODO workaround
 		if (debug) {
 			System.out.print(dump());
 		}
+//		logger.debug("after insert: {}", bitset.dump(header.capacity));
 		return slotNum;
 	}
 
@@ -326,7 +372,9 @@ public class RecordPage {
 		// TODO fill memory with default bytes
 		records[slotNum] = null;
 		bitset.set(slotNum, false);
+		writeBitsetToPage(); // TODO workaround
 		header.numRecords--;
+		writeHeaderToPage(); // TODO workaround
 		if (debug) {
 			System.out.print(dump());
 		}

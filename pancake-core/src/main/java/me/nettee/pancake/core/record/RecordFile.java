@@ -4,16 +4,13 @@ import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.nio.cs.US_ASCII;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Predicate;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.*;
 
 /**
  * The first page of record file serves as header page (which stores metadata),
@@ -33,13 +30,14 @@ public class RecordFile {
 
 	private PagedFile file;
 	private Metadata metadata;
+	@Deprecated
 	private Map<Integer, RecordPage> buffer; // TODO remove buffer
 	private boolean debug;
 
 	private RecordFile(PagedFile file) {
 		this.file = file;
 		metadata = new Metadata();
-		buffer = new TreeMap<>();
+//		buffer = new TreeMap<>();
 	}
 
 	public static RecordFile create(File file, int recordSize) {
@@ -85,10 +83,10 @@ public class RecordFile {
 
 	public void close() {
 		logger.info("Closing RecordFile");
-		for (RecordPage recordPage : buffer.values()) {
-			recordPage.persist();
-		}
-		buffer.clear();
+//		for (RecordPage recordPage : buffer.values()) {
+//			recordPage.persist();
+//		}
+//		buffer.clear();
 		file.forceAllPages();
 		file.close();
 	}
@@ -112,19 +110,19 @@ public class RecordFile {
 		if (debug) {
 			recordPage.setDebug(true);
 		}
-		buffer.put(recordPage.getPageNum(), recordPage);
+//		buffer.put(recordPage.getPageNum(), recordPage);
 		metadata.numPages++;
 		return recordPage;
 	}
 
 	private RecordPage getRecordPage(int pageNum) {
 		// TODO remove buffer
-		if (buffer.containsKey(pageNum)) {
-			return buffer.get(pageNum);
-		}
+//		if (buffer.containsKey(pageNum)) {
+//			return buffer.get(pageNum);
+//		}
 		Page page = file.getPage(pageNum);
 		RecordPage recordPage = RecordPage.open(page);
-		buffer.put(recordPage.getPageNum(), recordPage);
+//		buffer.put(recordPage.getPageNum(), recordPage);
 		return recordPage;
 	}
 
@@ -138,6 +136,7 @@ public class RecordFile {
 	public RID insertRecord(byte[] data) {
 		// TODO check data length
 		RecordPage recordPage = getFreeRecordPage();
+		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(data);
 		metadata.numRecords += 1;
@@ -188,6 +187,7 @@ public class RecordFile {
 
 	public void deleteRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
+		markDirty(recordPage);
 		recordPage.delete(rid.slotNum);
 		metadata.numRecords -= 1;
 		logger.info("Deleted record[{},{}]", rid.pageNum, rid.slotNum);
@@ -260,6 +260,10 @@ public class RecordFile {
 			return iterator.next();
 		}
 
+	}
+
+	private void markDirty(RecordPage recordPage) {
+		file.markDirty(recordPage.getPage());
 	}
 
 	private void unpinPage(RecordPage recordPage) {
