@@ -454,16 +454,7 @@ public class PagedFile {
 		writeBack(buffer.get(pageNum));
 	}
 
-	/**
-	 * This method copies the contents of the page specified by <tt>pageNum</tt>
-	 * from the buffer pool to disk if the page is in the buffer pool and is
-	 * marked as dirty. The page remains in the buffer pool but is no longer
-	 * marked as dirty.
-	 * 
-	 * @param pageNum page number
-	 * @throws PagedFileException
-	 */
-	public void forcePage(int pageNum) {
+	private void forcePage0(int pageNum) {
 		if (!buffer.contains(pageNum)) {
 			String msg = String.format(
 					"Fail to force page[%d]: page not in buffer pool", pageNum);
@@ -474,7 +465,33 @@ public class PagedFile {
 
 		Page page = buffer.get(pageNum);
 		page.dirty = false;
+	}
+
+	/**
+	 * This method copies the contents of the page specified by <tt>pageNum</tt>
+	 * from the buffer pool to disk if the page is in the buffer pool and is
+	 * marked as dirty. The page remains in the buffer pool but is no longer
+	 * marked as dirty.
+	 * 
+	 * @param pageNum page number
+	 * @throws PagedFileException
+	 */
+	public void forcePage(int pageNum) {
+		forcePage0(pageNum);
 		logger.info("Forced page[{}]", pageNum);
+	}
+
+	/**
+	 * This method copies the contents of the <tt>page</tt> from the buffer
+	 * pool to disk if the page is in the buffer pool and is marked as dirty.
+	 * The page remains in the buffer pool but is no longer marked as dirty.
+	 *
+	 * @param page the <tt>Page</tt> object
+	 * @throws PagedFileException
+	 */
+	public void forcePage(Page page) {
+		forcePage0(page.num);
+		logger.info("Forced page[{}]", page.num);
 	}
 
 	/**
@@ -489,7 +506,7 @@ public class PagedFile {
 		// Force all the pages in the buffer pool.
 		Set<Integer> allPages = buffer.getAllPages();
 		for (int pageNum : allPages) {
-			forcePage(pageNum);
+			forcePage0(pageNum);
 		}
 		logger.info("Forced all pages[{}]", pageRangeRepr(allPages));
 	}

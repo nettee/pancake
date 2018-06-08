@@ -4,6 +4,7 @@ import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.nio.cs.US_ASCII;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +33,7 @@ public class RecordFile {
 
 	private PagedFile file;
 	private Metadata metadata;
-	private Map<Integer, RecordPage> buffer;
+	private Map<Integer, RecordPage> buffer; // TODO remove buffer
 	private boolean debug;
 
 	private RecordFile(PagedFile file) {
@@ -57,6 +58,7 @@ public class RecordFile {
 		pagedFile.markDirty(headerPage);
 		recordFile.metadata.writeTo(headerPage.getData());
 		pagedFile.unpinPage(headerPage);
+		pagedFile.forcePage(headerPage);
 		logger.info("Header page (page[{}]) initialized", headerPage.getNum());
 
 		return recordFile;
@@ -95,6 +97,7 @@ public class RecordFile {
 		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
 			RecordPage recordPage = createRecordPage();
 			metadata.firstFreePage = recordPage.getPageNum();
+			logger.info("Created record page[{}]", recordPage.getPageNum());
 			return recordPage;
 		} else {
 			return getRecordPage(metadata.firstFreePage);
@@ -115,6 +118,7 @@ public class RecordFile {
 	}
 
 	private RecordPage getRecordPage(int pageNum) {
+		// TODO remove buffer
 		if (buffer.containsKey(pageNum)) {
 			return buffer.get(pageNum);
 		}
@@ -132,16 +136,19 @@ public class RecordFile {
 	 * @return record identifier <tt>RID</tt>
 	 */
 	public RID insertRecord(byte[] data) {
+		// TODO check data length
 		RecordPage recordPage = getFreeRecordPage();
 		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(data);
 		metadata.numRecords += 1;
+		logger.info("Inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
+				new String(data, StandardCharsets.US_ASCII));
+		// TODO Should we unpin here?
+		unpinPage(recordPage);
 		if (recordPage.isFull()) {
+			logger.info("Record page[{}] now becomes full", recordPage.getPageNum());
 			metadata.firstFreePage = recordPage.getNextFreePage();
 		}
-		logger.debug("inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
-				new String(data, StandardCharsets.US_ASCII));
-		unpinPage(recordPage);
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
@@ -155,6 +162,8 @@ public class RecordFile {
 	public byte[] getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		byte[] record = recordPage.get(rid.slotNum);
+		logger.info("Got record[{},{}] = <{}>", rid.pageNum, rid.slotNum,
+				new String(record, StandardCharsets.US_ASCII));
 		unpinPage(recordPage);
 		return record;
 	}
@@ -169,8 +178,11 @@ public class RecordFile {
 	 *            replacement
 	 */
 	public void updateRecord(RID rid, byte[] data) {
+		// TODO check data length
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.update(rid.slotNum, data);
+		logger.info("Updated record[{},{}] to <{}>", rid.pageNum, rid.slotNum,
+				new String(data, StandardCharsets.US_ASCII));
 		unpinPage(recordPage);
 	}
 
@@ -178,11 +190,13 @@ public class RecordFile {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		recordPage.delete(rid.slotNum);
 		metadata.numRecords -= 1;
+		logger.info("Deleted record[{},{}]", rid.pageNum, rid.slotNum);
+		unpinPage(recordPage);
 		if (recordPage.isEmpty()) {
+			logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
 			recordPage.setNextFreePage(metadata.firstFreePage);
 			metadata.firstFreePage = recordPage.getPageNum();
 		}
-		unpinPage(recordPage); // TODO is this correct?
 	}
 
 	/**

@@ -27,7 +27,7 @@ public class RecordFileCrudTest {
 	private int rounds;
 
 	@SuppressWarnings("rawtypes")
-	@Parameters
+	@Parameters(name="{0} rounds")
 	public static Collection data() {
 		Object[][] data = {
 				{1},
