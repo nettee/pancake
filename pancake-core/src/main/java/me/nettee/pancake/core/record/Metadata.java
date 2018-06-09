@@ -1,5 +1,7 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.page.Page;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -14,13 +16,22 @@ public class Metadata {
 	private static final String MAGIC = "REC-FILE";
 
 	int recordSize;
-	int dataPageStartingNum;
-	int numOfRecords;
-	int numOfPages;
-	int numOfRecordsInOnePage;
+	int dataPageOffset;
+	int numRecords;
+	int numPages;
+	int pageRecordCapacity;
 	int firstFreePage;
-	
-	void read(byte[] src) {
+
+	void init(int recordSize) {
+		this.recordSize = recordSize;
+		this.dataPageOffset = 1;
+		this.numRecords = 0;
+		this.numPages = 1;
+		this.pageRecordCapacity = (Page.DATA_SIZE - RecordPage.HEADER_SIZE) / recordSize;
+		this.firstFreePage = Metadata.NO_FREE_PAGE;
+	}
+
+	void readFrom(byte[] src) {
 		try {
 			ByteArrayInputStream bais = new ByteArrayInputStream(src);
 			DataInputStream is = new DataInputStream(bais);
@@ -33,26 +44,26 @@ public class Metadata {
 			}
 			
 			recordSize = is.readInt();
-			dataPageStartingNum = is.readInt();
-			numOfRecords = is.readInt();
-			numOfPages = is.readInt();
-			numOfRecordsInOnePage = is.readInt();
+			dataPageOffset = is.readInt();
+			numRecords = is.readInt();
+			numPages = is.readInt();
+			pageRecordCapacity = is.readInt();
 			firstFreePage = is.readInt();
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
 	}
 	
-	void write(byte[] dest) {
+	void writeTo(byte[] dest) {
 		try {
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			DataOutputStream os = new DataOutputStream(baos);
 			os.write(MAGIC.getBytes(StandardCharsets.US_ASCII));
 			os.writeInt(recordSize);
-			os.writeInt(dataPageStartingNum);
-			os.writeInt(numOfRecords);
-			os.writeInt(numOfPages);
-			os.writeInt(numOfRecordsInOnePage);
+			os.writeInt(dataPageOffset);
+			os.writeInt(numRecords);
+			os.writeInt(numPages);
+			os.writeInt(pageRecordCapacity);
 			os.writeInt(firstFreePage);
 			byte[] data = baos.toByteArray();
 			System.arraycopy(data, 0, dest, 0, data.length);
@@ -62,6 +73,6 @@ public class Metadata {
 	}
 	
 	int ridRecordNumber(RID rid) {
-		return (rid.pageNum - dataPageStartingNum) * numOfRecordsInOnePage + rid.slotNum;
+		return (rid.pageNum - dataPageOffset) * pageRecordCapacity + rid.slotNum;
 	}
 }

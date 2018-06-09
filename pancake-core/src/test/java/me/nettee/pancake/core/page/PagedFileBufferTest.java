@@ -91,8 +91,8 @@ public class PagedFileBufferTest {
 		}
 		try {
 			pagedFile.allocatePage();
-			fail("expect PagedFileException to throw");
-		} catch (PagedFileException e) {
+			fail("expect FullBufferException to throw");
+		} catch (FullBufferException e) {
 			// expected
 		}
 		unpinPages(pagedFile, PageBuffer.BUFFER_SIZE);

@@ -4,10 +4,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.LinkedList;
+import java.util.*;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -59,20 +56,22 @@ public class PagedFileTestUtils {
      * @param N the number of pages to unpin
      */
     static void unpinPages(PagedFile pagedFile, int N) {
+        Set<Integer> pageNums = new HashSet<>();
         for (int i = 0; i < N; i++) {
-            pagedFile.unpinPage(i);
+            pageNums.add(i);
         }
+        pagedFile.unpinPages(pageNums);
     }
 
     /**
-     * Unpin pages with pageNum in <tt>pageNums</tt>.
+     * Unpin pages with pageNum in <tt>pageNumsToUnpin</tt>.
      * @param pagedFile the <tt>PagedFile</tt> object
-     * @param pageNums collection of pageNums
+     * @param pageNumsToUnpin collection of pageNums
      */
-    static void unpinPages(PagedFile pagedFile, Collection<Integer> pageNums) {
-        for (int num : pageNums) {
-            pagedFile.unpinPage(num);
-        }
+    static void unpinPages(PagedFile pagedFile, Collection<Integer> pageNumsToUnpin) {
+        Set<Integer> pageNums = new HashSet<>();
+        pageNums.addAll(pageNumsToUnpin);
+        pagedFile.unpinPages(pageNums);
     }
 
     /**
@@ -82,12 +81,14 @@ public class PagedFileTestUtils {
      * @param excepts collection of pageNum not to unpin
      */
     static void unpinPages(PagedFile pagedFile, int N, Collection<Integer> excepts) {
+        Set<Integer> pageNums = new HashSet<>();
         for (int i = 0; i < N; i++) {
             if (excepts.contains(i)) {
                 continue;
             }
-            pagedFile.unpinPage(i);
+            pageNums.add(i);
         }
+        pagedFile.unpinPages(pageNums);
     }
 
     static String randomString() {

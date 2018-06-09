@@ -1,5 +1,8 @@
 package me.nettee.pancake.core.page;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.*;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -7,6 +10,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 class PageBuffer {
 
+    private static Logger logger = LoggerFactory.getLogger(PageBuffer.class);
     static final int BUFFER_SIZE = 40;
 
     private final PagedFile pagedFile;
@@ -40,13 +44,15 @@ class PageBuffer {
             if (hasUnpinnedPages()) {
                 int pageNum = getOneUnpinnedPage();
                 writeBackAndRemove(pageNum);
+                logger.info("Removed page[{}] from buffer to save space", pageNum);
             } else {
-                throw new PagedFileException("buffer pool is already full");
+                throw new FullBufferException("Buffer pool is already full");
             }
         }
         checkState(!isFull());
         buf.put(page.num, page);
         pin(page);
+        logger.info("Put and pinned page[{}] in buffer", page.num);
     }
 
     void pinAgainIfNot(Page page) {
@@ -54,6 +60,7 @@ class PageBuffer {
         if (!page.pinned) {
             checkState(unpinnedPages.contains(page.num));
             pinAgain(page);
+            logger.info("Pinned again page[{}] in buffer", page.num);
         }
     }
 
