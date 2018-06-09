@@ -41,22 +41,19 @@ public class RecordFile {
 
 	public static RecordFile create(File file, int recordSize) {
 		checkNotNull(file);
-		checkArgument(recordSize >= 4, "record size less than 4 is currently not supported");
+		checkArgument(recordSize >= 4,
+				"record size less than 4 is currently not supported");
 
 		logger.info("Creating RecordFile {}", file.getPath());
 
 		PagedFile pagedFile = PagedFile.create(file);
-		checkState(pagedFile.getNumOfPages() == 0, "created paged file is not empty");
+		checkState(pagedFile.getNumOfPages() == 0,
+				"Created paged file is not empty");
+		pagedFile.allocatePage(); // As header page
 
 		RecordFile recordFile = new RecordFile(pagedFile);
 		recordFile.metadata.init(recordSize);
-
-		Page headerPage = pagedFile.allocatePage();
-		pagedFile.markDirty(headerPage);
-		recordFile.metadata.writeTo(headerPage.getData());
-		pagedFile.unpinPage(headerPage);
-		pagedFile.forcePage(headerPage);
-		logger.info("Header page (page[{}]) initialized", headerPage.getNum());
+		logger.info("Metadata initialized");
 
 		return recordFile;
 	}
@@ -67,14 +64,13 @@ public class RecordFile {
 		logger.info("Opening RecordFile {}", file.getPath());
 
 		PagedFile pagedFile = PagedFile.open(file);
-		if (pagedFile.getNumOfPages() == 0) {
-			throw new RecordFileException("opened paged file is empty");
-		}
+		checkState(pagedFile.getNumOfPages() > 0,
+				"Opened paged file is empty");
 
 		RecordFile recordFile = new RecordFile(pagedFile);
-
 		Page headerPage = pagedFile.getFirstPage();
 		recordFile.metadata.readFrom(headerPage.getData());
+		logger.info("Metadata loaded");
 		pagedFile.unpinPage(headerPage);
 
 		return recordFile;
@@ -82,9 +78,20 @@ public class RecordFile {
 
 	public void close() {
 		logger.info("Closing RecordFile");
-		// TODO persist things in buffer
+
+		// Persist
+		writeMetadataToPage();
+		// TODO persist headers and bitsets in data pages
+
 		file.forceAllPages();
 		file.close();
+	}
+
+	private void writeMetadataToPage() {
+		Page headerPage = file.getFirstPage();
+		file.markDirty(headerPage);
+		metadata.writeTo(headerPage.getData());
+		file.unpinPage(headerPage);
 	}
 
 	private RecordPage getFreeRecordPage() {
