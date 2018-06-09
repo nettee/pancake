@@ -2,6 +2,7 @@ package me.nettee.pancake.core.record;
 
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
+import me.nettee.pancake.core.page.Pages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -245,12 +246,12 @@ public class RecordPage {
 		bitset = Bitset.fromByteArray(bitsetByteArray);
 	}
 
-	private void writeHeaderToPage() {
+	void writeHeaderToPage() {
 		byte[] headerBytes = header.toByteArray();
 		System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 	}
 
-	private void writeBitsetToPage() {
+	void writeBitsetToPage() {
 		byte[] bitsetBytes = bitset.toByteArray();
 		System.arraycopy(bitsetBytes, 0, page.getData(), HEADER_SIZE, bitsetBytes.length);
 	}
@@ -284,9 +285,7 @@ public class RecordPage {
 			"No free slot left in record page");
 		writeRecordToPage(slotNum, data);
 		bitset.set(slotNum);
-		writeBitsetToPage(); // TODO workaround
 		header.numRecords++;
-		writeHeaderToPage(); // TODO workaround
 		return slotNum;
 	}
 
@@ -316,11 +315,10 @@ public class RecordPage {
 	 */
 	void delete(int slotNum) {
 		checkRecordExistence(slotNum);
-		// TODO fill memory with default bytes
+		// Fill the record space with default bytes for ease of debugging.
+		writeRecordToPage(slotNum, Pages.makeDefaultBytes(header.recordSize));
 		bitset.set(slotNum, false);
-		writeBitsetToPage(); // TODO workaround
 		header.numRecords--;
-		writeHeaderToPage(); // TODO workaround
 	}
 	
 	public boolean isEmpty() {

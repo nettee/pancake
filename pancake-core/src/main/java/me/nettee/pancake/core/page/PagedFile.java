@@ -246,9 +246,7 @@ public class PagedFile {
 			// re-open the file.
 			file.writeInt(-1 - disposedPageNumsStack.size());
 			// Fill the file with default bytes for ease of debugging.
-			byte[] data = new byte[Page.DATA_SIZE];
-			Arrays.fill(data, Page.DEFAULT_BYTE);
-			file.write(data);
+			file.write(Pages.makeDefaultBytes(Page.DATA_SIZE));
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
 			throw new PagedFileException(msg, e);

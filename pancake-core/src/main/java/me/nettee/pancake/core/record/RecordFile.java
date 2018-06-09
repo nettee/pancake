@@ -7,10 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.*;
@@ -31,12 +28,37 @@ public class RecordFile {
 
 	private static Logger logger = LoggerFactory.getLogger(RecordFile.class);
 
-	private PagedFile file;
-	private Metadata metadata;
+	private static class RecordPageBuffer {
 
-	private RecordFile(PagedFile file) {
-		this.file = file;
+		private Map<Integer, RecordPage> buf = new HashMap<>();
+
+		void add(RecordPage recordPage) {
+			int pageNum = recordPage.getPageNum();
+			buf.put(pageNum, recordPage);
+			logger.info("Page[{}] added to record page buffer", pageNum);
+		}
+
+		boolean contains(int pageNum) {
+			return buf.containsKey(pageNum);
+		}
+
+		RecordPage get(int pageNum) {
+			return buf.get(pageNum);
+		}
+
+		Collection<RecordPage> pages() {
+			return buf.values();
+		}
+	}
+
+	private PagedFile pagedFile;
+	private Metadata metadata;
+	private RecordPageBuffer buffer;
+
+	private RecordFile(PagedFile pagedFile) {
+		this.pagedFile = pagedFile;
 		metadata = new Metadata();
+		buffer = new RecordPageBuffer();
 	}
 
 	public static RecordFile create(File file, int recordSize) {
@@ -79,19 +101,25 @@ public class RecordFile {
 	public void close() {
 		logger.info("Closing RecordFile");
 
-		// Persist
 		writeMetadataToPage();
-		// TODO persist headers and bitsets in data pages
+		writeDataPageHeadersAndBitsetsToPage();
 
-		file.forceAllPages();
-		file.close();
+		pagedFile.forceAllPages();
+		pagedFile.close();
 	}
 
 	private void writeMetadataToPage() {
-		Page headerPage = file.getFirstPage();
-		file.markDirty(headerPage);
+		Page headerPage = pagedFile.getFirstPage();
+		pagedFile.markDirty(headerPage);
 		metadata.writeTo(headerPage.getData());
-		file.unpinPage(headerPage);
+		pagedFile.unpinPage(headerPage);
+	}
+
+	private void writeDataPageHeadersAndBitsetsToPage() {
+		for (RecordPage recordPage : buffer.pages()) {
+			recordPage.writeHeaderToPage();
+			recordPage.writeBitsetToPage();
+		}
 	}
 
 	private RecordPage getFreeRecordPage() {
@@ -107,18 +135,23 @@ public class RecordFile {
 	}
 
 	private RecordPage createRecordPage() {
-		Page page = file.allocatePage();
-		file.markDirty(page);
+		Page page = pagedFile.allocatePage();
+		pagedFile.markDirty(page);
 		RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
-		// TODO force metadata to disk
 		metadata.numPages++;
+		buffer.add(recordPage);
 		return recordPage;
 	}
 
 	private RecordPage getRecordPage(int pageNum) {
-		// TODO add buffer for header and bitset
-		Page page = file.getPage(pageNum);
+		if (buffer.contains(pageNum)) {
+			RecordPage recordPage = buffer.get(pageNum);
+			touch(recordPage);
+			return recordPage;
+		}
+		Page page = pagedFile.getPage(pageNum);
 		RecordPage recordPage = RecordPage.open(page);
+		buffer.add(recordPage);
 		return recordPage;
 	}
 
@@ -278,12 +311,19 @@ public class RecordFile {
 
 	}
 
+	/**
+	 * Make the page pinned again in paged file.
+	 */
+	private void touch(RecordPage recordPage) {
+		pagedFile.getPage(recordPage.getPageNum());
+	}
+
 	private void markDirty(RecordPage recordPage) {
-		file.markDirty(recordPage.getPage());
+		pagedFile.markDirty(recordPage.getPage());
 	}
 
 	private void unpinPage(RecordPage recordPage) {
-		file.unpinPage(recordPage.getPage());
+		pagedFile.unpinPage(recordPage.getPage());
 	}
 
 }
