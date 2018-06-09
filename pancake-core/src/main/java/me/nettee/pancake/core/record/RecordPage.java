@@ -135,11 +135,6 @@ public class RecordPage {
 
 	private Header header;
 	private Bitset bitset;
-	@Deprecated
-	private Record[] records;
-
-	@Deprecated
-	private boolean debug;
 
 	private RecordPage(Page page) {
 		this.page = page;
@@ -202,7 +197,6 @@ public class RecordPage {
 		logger.debug("header.bitsetSize = {}", header.bitsetSize);
 
 		bitset = Bitset.empty(n);
-		records = new Record[n];
 
 		writeHeaderToPage();
 		writeBitsetToPage();
@@ -210,30 +204,6 @@ public class RecordPage {
 
 	private void load() {
 		readHeaderAndBitsetFromPage();
-
-		int n = header.capacity;
-		records = new Record[n];
-		for (int i = 0; i < n; i++) {
-			if (bitset.get(i)) {
-				records[i] = new Record(readRecordFromPage(i));
-			}
-		}
-	}
-
-	private void persist0() {
-		byte[] headerBytes = header.toByteArray();
-		System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
-		byte[] bitsetBytes = bitset.toByteArray();
-		System.arraycopy(bitsetBytes, 0, page.getData(), HEADER_SIZE, bitsetBytes.length);
-		for (int i = 0; i < header.capacity; i++) {
-			if (bitset.get(i)) {
-				writeRecordToPage(i, records[i].data);
-			}
-		}
-	}
-
-	public void persist() {
-		persist0();
 	}
 
 	public String dump() {
@@ -260,16 +230,10 @@ public class RecordPage {
 	}
 	
 	private void checkRecordExistence(int slotNum) {
-		checkState(bitset.get(slotNum), String.format("record %d does not exist", slotNum));
-		checkRecordBufferConsistency(slotNum);
-	}
-
-	@Deprecated
-	private void checkRecordBufferConsistency(int slotNum) {
-		boolean existsInBitset = bitset.get(slotNum);
-		boolean existsInRecordsArray = records[slotNum] != null;
-		checkState(existsInBitset == existsInRecordsArray,
-			String.format("inconsistent internal state at slot %d", slotNum));
+		if (!bitset.get(slotNum)) {
+			String msg = String.format("record %d does not exist", slotNum);
+			throw new RecordNotExistException(msg);
+		}
 	}
 
 	private void readHeaderAndBitsetFromPage() {
@@ -311,26 +275,18 @@ public class RecordPage {
 	 * @return slot number of inserted record
 	 */
 	int insert(byte[] data) {
-//		logger.debug("before insert: {}", bitset.dump(header.capacity));
 		int slotNum = 0;
 		// Find the first free slot
 		while (slotNum < header.capacity && bitset.get(slotNum)) {
 			slotNum++;
 		}
-//		logger.debug("Found slotNum = {}", slotNum);
 		checkState(slotNum < header.capacity,
 			"No free slot left in record page");
-		checkRecordBufferConsistency(slotNum);
 		writeRecordToPage(slotNum, data);
-		records[slotNum] = new Record(Arrays.copyOf(data, data.length)); // TODO remove this
 		bitset.set(slotNum);
 		writeBitsetToPage(); // TODO workaround
 		header.numRecords++;
 		writeHeaderToPage(); // TODO workaround
-		if (debug) {
-			System.out.print(dump());
-		}
-//		logger.debug("after insert: {}", bitset.dump(header.capacity));
 		return slotNum;
 	}
 
@@ -341,12 +297,7 @@ public class RecordPage {
 	 */
 	byte[] get(int slotNum) {
 		checkRecordExistence(slotNum);
-		byte[] record = readRecordFromPage(slotNum);
-//		byte[] data = records[slotNum].data; // TODO remove this
-		if (debug) {
-			System.out.print(dump());
-		}
-		return record;
+		return readRecordFromPage(slotNum);
 	}
 	
 	/**
@@ -357,10 +308,6 @@ public class RecordPage {
 	void update(int slotNum, byte[] data) {
 		checkRecordExistence(slotNum);
 		writeRecordToPage(slotNum, data);
-		records[slotNum].data = Arrays.copyOf(data, data.length);
-		if (debug) {
-			System.out.print(dump());
-		}
 	}
 	
 	/**
@@ -370,14 +317,10 @@ public class RecordPage {
 	void delete(int slotNum) {
 		checkRecordExistence(slotNum);
 		// TODO fill memory with default bytes
-		records[slotNum] = null;
 		bitset.set(slotNum, false);
 		writeBitsetToPage(); // TODO workaround
 		header.numRecords--;
 		writeHeaderToPage(); // TODO workaround
-		if (debug) {
-			System.out.print(dump());
-		}
 	}
 	
 	public boolean isEmpty() {
@@ -417,11 +360,6 @@ public class RecordPage {
 		return page.getNum();
 	}
 
-	@Deprecated
-	public void setDebug(boolean debug) {
-		this.debug = debug;
-	}
-	
 	Iterator<byte[]> scan(Predicate<byte[]> pred) {
 		return new RecordIterator(pred);
 	}

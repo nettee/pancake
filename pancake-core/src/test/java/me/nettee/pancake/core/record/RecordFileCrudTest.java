@@ -16,17 +16,18 @@ import org.junit.runners.Parameterized.Parameters;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.Map.Entry;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class RecordFileCrudTest {
 
 	private static final int RECORD_SIZE = 8;
 	private static final int CAPACITY = 500;
-	private RecordFile rf;
-	private int rounds;
+
+	private RecordFile recordFile;
+	private final int rounds;
 
 	@SuppressWarnings("rawtypes")
 	@Parameters(name="{0} rounds")
@@ -55,21 +56,19 @@ public class RecordFileCrudTest {
 		if (file.exists()) {
 			file.delete();
 		}
-		rf = RecordFile.create(file, RECORD_SIZE);
-//		rf.setDebug(true);
+		recordFile = RecordFile.create(file, RECORD_SIZE);
 	}
 
 	@After
 	public void tearDown() {
-		rf.close();
+		recordFile.close();
 	}
 
 	@Test
 	public void testInsert() {
 		for (int i = 0; i < rounds; i++) {
-			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE - 1) + " ";
-			byte[] str = str0.getBytes();
-			rf.insertRecord(str);
+			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE - 1) + " ";
+			recordFile.insertRecord(str.getBytes());
 		}
 	}
 
@@ -77,57 +76,51 @@ public class RecordFileCrudTest {
 	public void testGet() {
 		List<Pair<RID, String>> records = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			byte[] str = str0.getBytes();
-			RID rid = rf.insertRecord(str);
-			records.add(new ImmutablePair<>(rid, str0));
+			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			RID rid = recordFile.insertRecord(str.getBytes());
+			records.add(new ImmutablePair<>(rid, str));
 		}
 		for (Pair<RID, String> record : records) {
 			RID rid = record.getLeft();
-			String str0 = record.getRight();
-			byte[] rec = rf.getRecord(rid);
-			String rec0 = new String(rec, StandardCharsets.US_ASCII);
-			assertEquals(str0, rec0);
+			String str = record.getRight();
+			byte[] data = recordFile.getRecord(rid);
+			assertEquals(str, new String(data, StandardCharsets.US_ASCII));
 		}
 	}
 	
 	@Test
 	public void testUpdate() {
-		List<RID> list = new ArrayList<>();
+		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			byte[] str = str0.getBytes();
-			RID rid = rf.insertRecord(str);
-			list.add(rid);
+			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			RID rid = recordFile.insertRecord(str.getBytes());
+			rids.add(rid);
 		}
-		Collections.shuffle(list);
-		for (RID rid : list) {
-			String newstr0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			byte[] newstr = newstr0.getBytes();
-			rf.updateRecord(rid, newstr);
-			byte[] rec = rf.getRecord(rid);
-			String rec0 = new String(rec, StandardCharsets.US_ASCII);
-			assertEquals(newstr0, rec0);
+		Collections.shuffle(rids);
+		for (RID rid : rids) {
+			String newStr = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			recordFile.updateRecord(rid, newStr.getBytes());
+			byte[] data = recordFile.getRecord(rid);
+			assertEquals(newStr, new String(data, StandardCharsets.US_ASCII));
 		}
 	}
 
 	@Test
 	public void testDelete() {
-		List<RID> list = new ArrayList<>();
+		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str0 = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			byte[] str = str0.getBytes();
-			RID rid = rf.insertRecord(str);
-			list.add(rid);
+			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+			RID rid = recordFile.insertRecord(str.getBytes());
+			rids.add(rid);
 		}
-		Collections.shuffle(list);
-		for (RID rid : list) {
-			rf.deleteRecord(rid);
+		Collections.shuffle(rids);
+		for (RID rid : rids) {
+			recordFile.deleteRecord(rid);
 		}
-		Collections.shuffle(list);
-		for (RID rid : list) {
-			thrown.expect(Exception.class);
-			rf.getRecord(rid);
+		Collections.shuffle(rids);
+		for (RID rid : rids) {
+			thrown.expect(RecordNotExistException.class);
+			recordFile.getRecord(rid);
 		}
 	}
 }

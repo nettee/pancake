@@ -7,7 +7,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.*;
@@ -30,14 +33,10 @@ public class RecordFile {
 
 	private PagedFile file;
 	private Metadata metadata;
-	@Deprecated
-	private Map<Integer, RecordPage> buffer; // TODO remove buffer
-	private boolean debug;
 
 	private RecordFile(PagedFile file) {
 		this.file = file;
 		metadata = new Metadata();
-//		buffer = new TreeMap<>();
 	}
 
 	public static RecordFile create(File file, int recordSize) {
@@ -83,10 +82,7 @@ public class RecordFile {
 
 	public void close() {
 		logger.info("Closing RecordFile");
-//		for (RecordPage recordPage : buffer.values()) {
-//			recordPage.persist();
-//		}
-//		buffer.clear();
+		// TODO persist things in buffer
 		file.forceAllPages();
 		file.close();
 	}
@@ -107,34 +103,26 @@ public class RecordFile {
 		Page page = file.allocatePage();
 		file.markDirty(page);
 		RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
-		if (debug) {
-			recordPage.setDebug(true);
-		}
-//		buffer.put(recordPage.getPageNum(), recordPage);
+		// TODO force metadata to disk
 		metadata.numPages++;
 		return recordPage;
 	}
 
 	private RecordPage getRecordPage(int pageNum) {
-		// TODO remove buffer
-//		if (buffer.containsKey(pageNum)) {
-//			return buffer.get(pageNum);
-//		}
+		// TODO add buffer for header and bitset
 		Page page = file.getPage(pageNum);
 		RecordPage recordPage = RecordPage.open(page);
-//		buffer.put(recordPage.getPageNum(), recordPage);
 		return recordPage;
 	}
 
 	/**
 	 * Insert <tt>data</tt> as a new record in file.
 	 * 
-	 * @param data
-	 *            record data
+	 * @param data record data
 	 * @return record identifier <tt>RID</tt>
 	 */
 	public RID insertRecord(byte[] data) {
-		// TODO check data length
+		checkArgument(data.length == metadata.recordSize);
 		RecordPage recordPage = getFreeRecordPage();
 		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
@@ -142,7 +130,6 @@ public class RecordFile {
 		metadata.numRecords += 1;
 		logger.info("Inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
 				new String(data, StandardCharsets.US_ASCII));
-		// TODO Should we unpin here?
 		unpinPage(recordPage);
 		if (recordPage.isFull()) {
 			logger.info("Record page[{}] now becomes full", recordPage.getPageNum());
@@ -154,48 +141,71 @@ public class RecordFile {
 	/**
 	 * Get the record data identified by <tt>rid</tt>.
 	 * 
-	 * @param rid
-	 *            record identification
+	 * @param rid record identification
 	 * @return record data
+	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
 	public byte[] getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
-		byte[] record = recordPage.get(rid.slotNum);
-		logger.info("Got record[{},{}] = <{}>", rid.pageNum, rid.slotNum,
-				new String(record, StandardCharsets.US_ASCII));
-		unpinPage(recordPage);
-		return record;
+		try {
+			byte[] record = recordPage.get(rid.slotNum);
+			logger.info("Got record[{},{}] = <{}>", rid.pageNum, rid.slotNum,
+					new String(record, StandardCharsets.US_ASCII));
+			unpinPage(recordPage);
+			return record;
+		} catch (RecordNotExistException e) {
+			logger.error(e.getMessage());
+			unpinPage(recordPage);
+			throw e;
+		}
 	}
 
 	/**
 	 * Update the record identified by <tt>rid</tt>. The existing contents of
 	 * the record will be replaced by <tt>data</tt>.
 	 * 
-	 * @param rid
-	 *            record identification
-	 * @param data
-	 *            replacement
+	 * @param rid record identification
+	 * @param data replacement
+	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
 	public void updateRecord(RID rid, byte[] data) {
-		// TODO check data length
+		checkArgument(data.length == metadata.recordSize);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
-		recordPage.update(rid.slotNum, data);
-		logger.info("Updated record[{},{}] to <{}>", rid.pageNum, rid.slotNum,
-				new String(data, StandardCharsets.US_ASCII));
-		unpinPage(recordPage);
+		try {
+			recordPage.update(rid.slotNum, data);
+			logger.info("Updated record[{},{}] to <{}>", rid.pageNum, rid.slotNum,
+					new String(data, StandardCharsets.US_ASCII));
+			unpinPage(recordPage);
+		} catch (RecordNotExistException e) {
+			logger.error(e.getMessage());
+			unpinPage(recordPage);
+			throw e;
+		}
 	}
 
+	/**
+	 * Delete the record identified by <tt>rid</tt>.
+	 * @param rid record identification
+	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
+	 */
 	public void deleteRecord(RID rid) {
+		logger.debug("Deleting record[{},{}]", rid.pageNum, rid.slotNum);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
-		markDirty(recordPage);
-		recordPage.delete(rid.slotNum);
-		metadata.numRecords -= 1;
-		logger.info("Deleted record[{},{}]", rid.pageNum, rid.slotNum);
-		unpinPage(recordPage);
-		if (recordPage.isEmpty()) {
-			logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
-			recordPage.setNextFreePage(metadata.firstFreePage);
-			metadata.firstFreePage = recordPage.getPageNum();
+		try {
+			markDirty(recordPage);
+			recordPage.delete(rid.slotNum);
+			metadata.numRecords -= 1;
+			logger.info("Deleted record[{},{}]", rid.pageNum, rid.slotNum);
+			unpinPage(recordPage);
+			if (recordPage.isEmpty()) {
+				logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
+				recordPage.setNextFreePage(metadata.firstFreePage);
+				metadata.firstFreePage = recordPage.getPageNum();
+			}
+		} catch (RecordNotExistException e) {
+			logger.error(e.getMessage());
+			unpinPage(recordPage);
+			throw e;
 		}
 	}
 
@@ -212,8 +222,7 @@ public class RecordFile {
 	 * Scan over the records in this file that satisfies predicate
 	 * <tt>pred</tt>.
 	 *
-	 * @param predicate
-	 *            predicate on record data
+	 * @param predicate predicate on record data
 	 * @return an <tt>Iterator</tt> to iterate through records
 	 */
 	public Iterator<byte[]> scan(Predicate<byte[]> predicate) {
@@ -268,10 +277,6 @@ public class RecordFile {
 
 	private void unpinPage(RecordPage recordPage) {
 		file.unpinPage(recordPage.getPage());
-	}
-
-	public void setDebug(boolean debug) {
-		this.debug = debug;
 	}
 
 }
