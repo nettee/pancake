@@ -4,29 +4,21 @@
 [![codecov](https://codecov.io/gh/nettee/pancake/branch/master/graph/badge.svg)](https://codecov.io/gh/nettee/pancake)
 [![Open Source Love](https://badges.frapsoft.com/os/gpl/gpl.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
 
-## Overview
+## 概述
 
-Pancake 是一个关系型数据库，它的实现受到了斯坦福 [CS346][cs346] 课程中 _RedBase_ 的启发，可以看作是 RedBase 的 Java 实现版。
-
-Pancake is my personal Relational-DBMS project. It is inspired by _RedBase_ of Stanford [CS346][cs346] course and can be considered as a Java implementation of RedBase.
+Pancake 是一个关系型数据库，它的实现受到了斯坦福 [CS346][cs346] 课程中 _RedBase_ 的启发，可以看作是 RedBase 的 Java 实现版。Pancake 是为了帮助理解数据库系统原理，因此实现较为简单，当前的目标是实现一个单线程、无事务数据库。与 RedBase 类似，Pancake 的实现分为五个部分：
 
 [cs346]: https://web.stanford.edu/class/cs346/2015/
 
-Pancake 计划分为三个阶段进行实现，其中第一阶段和 RedBase 的功能相同。
++ paged file (working)
++ record management (working)
++ index
++ system management
++ query language
 
-Pancake is intended to envolve in the following three steps, first of which is the same as RedBase.
+在基本功能实现后，Pancake 会逐步增加更高级的功能，包括：
 
-1. **单线程，无事务数据库 single-threaded DBMS without transaction** (working)
-  + paged file (working)
-  + record management (working)
-  + index
-  + system management
-  + query language
-2. 单线程，单事务数据库 single-threaded DBMS with single transaction
-3. 多线程，多事务数据库 multi-threaded DBMS with multiple transactions
++ 事务管理
++ 多线程并发
++ 事务可靠性
 
-## 贡献 Contributing
-
-接受各种形式的贡献，包括提交问题，修复代码，完善单元测试。期待您的 pull request。
-
-Any types of contribution are welcome. Thanks.
