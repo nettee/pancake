@@ -46,6 +46,10 @@ RM 模块在 `PagedFile` 提供的页中进行记录的存储。每个 paged fil
 
 RM 模块将记录存储在 paged file 的不同页中，每个页中存储多条记录。这种情况下，**记录 ID (RID)** 为一个二元组 `(pageNum, slotNum)` ，其中 **页编号 (pageNum)** 表示记录所在的页，这个编号和 paged file 中的页编号相同； **槽编号 (slotNum)** 表示记录在该页中的序号。同一个页中的槽编号是从 0 开始连续的。
 
+### 扫描记录
+
+RM 模块提供了扫描记录的功能。一个扫描既可以扫描全部的记录，也可以扫描符合指定条件的记录。刷选条件是一个数值关系的比较，有六种比较符（EQ, LT, GT, LE, GE, NE）。
+
 ## 参考文档
 
 + [Stanford CS346 - Database System Implementation - Spring 2015][cs346]
