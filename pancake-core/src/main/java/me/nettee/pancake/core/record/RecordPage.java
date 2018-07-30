@@ -358,18 +358,15 @@ public class RecordPage {
 		return page.getNum();
 	}
 
-	Iterator<byte[]> scan(Predicate<byte[]> pred) {
-		return new RecordIterator(pred);
+	Iterator<byte[]> scan() {
+		return new RecordIterator();
 	}
 	
 	public class RecordIterator implements Iterator<byte[]> {
 		
-		private final Predicate<byte[]> predicate;
-		
 		private int currentSlotNum;
 
-		public RecordIterator(Predicate<byte[]> predicate) {
-			this.predicate = predicate;
+		public RecordIterator() {
 			currentSlotNum = 0;
 		}
 
@@ -384,7 +381,9 @@ public class RecordPage {
 		public byte[] next() {
 			// TODO take predicate into consideration
 			// FIXME consider deleted records
-			return get(currentSlotNum++);
+			byte[] record = get(currentSlotNum);
+			currentSlotNum++;
+			return record;
 		}
 		
 	}

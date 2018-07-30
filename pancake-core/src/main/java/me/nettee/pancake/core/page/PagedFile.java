@@ -1,8 +1,5 @@
 package me.nettee.pancake.core.page;
 
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +9,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -132,7 +128,7 @@ public class PagedFile {
 	public void close() {
 		logger.info("Closing PagedFile");
 		if (buffer.hasPinnedPages()) {
-			logger.error("Still has pinned pages[{}]", pageRangeRepr(buffer.getPinnedPages()));
+			logger.error("Still has pinned pages[{}]", Pages.pageRangeRepr(buffer.getPinnedPages()));
 			throw new PagedFileException("Fail to close paged file: there are pinned pages in the buffer pool");
 		}
 
@@ -141,7 +137,7 @@ public class PagedFile {
 			writeBack(buffer.get(pageNum));
 		}
 		if (!unpinnedPages.isEmpty()) {
-			logger.info("Written back unpinned pages[{}]", pageRangeRepr(unpinnedPages));
+			logger.info("Written back unpinned pages[{}]", Pages.pageRangeRepr(unpinnedPages));
 		}
 
 
@@ -420,31 +416,7 @@ public class PagedFile {
 				unpinnedPageNums.add(pageNum);
 			}
 		}
-		logger.info("Unpinned pages[{}] in buffer", pageRangeRepr(unpinnedPageNums));
-	}
-
-	private static String pageRangeRepr(Set<Integer> pageNumSet) {
-		Integer[] pageNums = pageNumSet.toArray(new Integer[pageNumSet.size()]);
-		List<Pair<Integer, Integer>> ranges = new ArrayList<>();
-		int i = 0;
-		while (i < pageNums.length) {
-			int j = i;
-			while (j+1 < pageNums.length && pageNums[j+1] == pageNums[j] + 1) {
-				j++;
-			}
-			// pageNums[i..j] is continuous
-			ranges.add(new ImmutablePair<>(pageNums[i], pageNums[j]));
-			i = j + 1;
-		}
-		return ranges.stream().map(range -> {
-			int min = range.getLeft();
-			int max = range.getRight();
-			if (min == max) {
-				return String.valueOf(min);
-			} else {
-				return String.format("%d-%d", min, max);
-			}
-		}).collect(Collectors.joining(","));
+		logger.info("Unpinned pages[{}] in buffer", Pages.pageRangeRepr(unpinnedPageNums));
 	}
 
 	void writeBack(int pageNum) {
@@ -506,7 +478,7 @@ public class PagedFile {
 		for (int pageNum : allPages) {
 			forcePage0(pageNum);
 		}
-		logger.info("Forced all pages[{}]", pageRangeRepr(allPages));
+		logger.info("Forced all pages[{}]", Pages.pageRangeRepr(allPages));
 	}
 
 }

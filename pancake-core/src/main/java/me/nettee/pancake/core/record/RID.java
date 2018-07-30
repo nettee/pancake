@@ -21,4 +21,8 @@ public class RID {
 		this.slotNum = slotNum;
 	}
 
+	@Override
+	public String toString() {
+		return String.format("<%d,%d>", pageNum, slotNum);
+	}
 }

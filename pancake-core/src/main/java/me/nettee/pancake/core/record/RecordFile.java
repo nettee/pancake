@@ -258,58 +258,61 @@ public class RecordFile {
 		return new RecordIterator();
 	}
 
-	/**
-	 * Scan over the records in this file that satisfies predicate
-	 * <tt>pred</tt>.
-	 *
-	 * @param predicate predicate on record data
-	 * @return an <tt>Iterator</tt> to iterate through records
-	 */
-	public Iterator<byte[]> scan(Predicate<byte[]> predicate) {
-		return new RecordIterator(predicate);
-	}
-
 	private class RecordIterator implements Iterator<byte[]> {
 
-		private final Optional<Predicate<byte[]>> predicate;
-		
-		private Iterator<byte[]> iterator;
-		
+	    private final Iterator<Integer> pageIterator;
+	    // Invariant: recordPage and slotIterator should be null at the same time.
+        private RecordPage recordPage;
+        // Invariant: slotIterator should have next or be null
+        private Iterator<byte[]> slotIterator;
+
 		RecordIterator() {
-			this(null);
+		    logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
+		    logger.debug("numPages = {}", metadata.numPages);
+		    Set<Integer> targetPages = new TreeSet<>();
+            for (int i = metadata.dataPageOffset; i < metadata.numPages; i++) {
+                targetPages.add(i);
+            }
+            pageIterator = targetPages.iterator();
 		}
 
-		RecordIterator(Predicate<byte[]> predicate) {
-			this.predicate = Optional.ofNullable(predicate);
-			List<byte[]> allRecords = new ArrayList<>();
-			logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
-			logger.debug("numOfPages = {}", metadata.numPages);
-			for (int pageNum = metadata.dataPageOffset; pageNum < metadata.numPages; pageNum++) {
-				RecordPage recordPage = getRecordPage(pageNum);
-				logger.debug("page[{}]", pageNum);
-				Iterator<byte[]> recordIterator = recordPage.scan(predicate);
-				while (recordIterator.hasNext()) {
-					byte[] record = recordIterator.next();
-					allRecords.add(record);
-				}
-			}
-			iterator = allRecords.iterator();
-			// XXX improve efficiency
-		}
-		
 		@Override
 		public boolean hasNext() {
-			// FIXME consider deleted records
-			return iterator.hasNext();
+			// FIXME consider deleted records (pages)
+            if (slotIterator != null) {
+                // A slotIterator always hasNext when it is not null.
+                // One page is under scanning
+                return true;
+            }
+            if (!pageIterator.hasNext()) {
+                // All pages finish scanning.
+                return false;
+            }
+            // Start to scan a new page.
+            int pageNum = pageIterator.next();
+            recordPage = getRecordPage(pageNum);
+            slotIterator = recordPage.scan();
+            return slotIterator.hasNext();
 		}
 
 		@Override
 		public byte[] next() {
 			// FIXME consider deleted records
-			return iterator.next();
-		}
+            // FIXME what if slotIterator has no next? (all records in this page are deleted)
+            byte[] record = slotIterator.next();
+            if (!slotIterator.hasNext()) {
+                slotIterator = null;
+                unpinPage(recordPage);
+                recordPage = null;
+            }
+            return record;
+        }
 
-	}
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+    }
 
 	/**
 	 * Make the page pinned again in paged file.
