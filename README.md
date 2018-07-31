@@ -1,8 +1,9 @@
 # Pancake
 
+[![Open Source Love](https://badges.frapsoft.com/os/gpl/gpl.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
 [![Build Status](https://travis-ci.org/nettee/pancake.svg?branch=master)](https://travis-ci.org/nettee/pancake)
 [![codecov](https://codecov.io/gh/nettee/pancake/branch/master/graph/badge.svg)](https://codecov.io/gh/nettee/pancake)
-[![Open Source Love](https://badges.frapsoft.com/os/gpl/gpl.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/d2bd8c967b8e4acdb6afde84e7f683ab)](https://www.codacy.com/app/nettee/pancake?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nettee/pancake&amp;utm_campaign=Badge_Grade)
 
 ## 概述
 
