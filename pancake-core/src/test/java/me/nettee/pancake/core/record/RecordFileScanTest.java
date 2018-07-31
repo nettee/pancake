@@ -1,17 +1,19 @@
 package me.nettee.pancake.core.record;
 
-import java.io.File;
-import java.util.*;
-
 import me.nettee.pancake.core.page.Pages;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -31,13 +33,13 @@ public class RecordFileScanTest {
 	@Parameterized.Parameters(name="{0} rounds")
 	public static Collection data() {
 		Object[][] data = {
-//				{1},
-//				{RandomUtils.nextInt(2, CAPACITY)},
-//				{CAPACITY},
+				{1},
+				{RandomUtils.nextInt(2, CAPACITY)},
+				{CAPACITY},
 				{CAPACITY + 1},
                 {2 * CAPACITY + 5},
-//				{RandomUtils.nextInt(2, 10) * CAPACITY},
-//				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
+				{RandomUtils.nextInt(2, 10) * CAPACITY},
+				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
 		};
 		return Arrays.asList(data);
 	}
@@ -63,38 +65,59 @@ public class RecordFileScanTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	@Test
-	public void testScan() {
-		List<RID> rids = new ArrayList<>();
-		List<byte[]> records = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-			String str = String.format("rec-%04d", i);
-			byte[] record = str.getBytes();
-			records.add(record);
-			RID rid = recordFile.insertRecord(record);
-			rids.add(rid);
-		}
-//		Map<Integer, Set<Integer>> counter = new TreeMap<>();
-//		for (RID rid : rids) {
-//			if (!counter.containsKey(rid.pageNum)) {
-//				counter.put(rid.pageNum, new HashSet<>());
-//			}
-//			counter.get(rid.pageNum).add(rid.slotNum);
-//		}
-//		for (Map.Entry<Integer, Set<Integer>> entry : counter.entrySet()) {
-//			int pageNum = entry.getKey();
-//			Set<Integer> slots = entry.getValue();
-//			logger.debug("Page[{}] contains records [{}]",
-//					pageNum, Pages.pageRangeRepr(slots));
-//		}
+	private List<byte[]> insertRecords(RecordFile recordFile) {
+        List<RID> rids = new ArrayList<>();
+        List<byte[]> records = new ArrayList<>();
+        for (int i = 0; i < rounds; i++) {
+            String str = String.format("rec-%04d", i);
+            byte[] record = str.getBytes();
+            records.add(record);
+            RID rid = recordFile.insertRecord(record);
+            rids.add(rid);
+        }
 
-		int i = 0;
-		Iterator<byte[]> iterator = recordFile.scan();
-		while (iterator.hasNext()) {
-			byte[] record = iterator.next();
-			byte[] expected = records.get(i);
-			i++;
+        Map<Integer, Set<Integer>> counter = new TreeMap<>();
+        for (RID rid : rids) {
+            if (!counter.containsKey(rid.pageNum)) {
+                counter.put(rid.pageNum, new HashSet<>());
+            }
+            counter.get(rid.pageNum).add(rid.slotNum);
+        }
+        for (Map.Entry<Integer, Set<Integer>> entry : counter.entrySet()) {
+            int pageNum = entry.getKey();
+            Set<Integer> slots = entry.getValue();
+            logger.debug("Page[{}] contains records [{}]",
+                    pageNum, Pages.pageRangeRepr(slots));
+        }
+
+        return records;
+    }
+
+    private void testScanAll(List<byte[]> expectedRecords, Scan<byte[]> scan) {
+        int i = 0;
+        while (true) {
+            Optional<byte[]> optionalRecord = scan.next();
+            if (!optionalRecord.isPresent()) {
+                // End of scan.
+                break;
+            }
+            byte[] record = optionalRecord.get();
+            byte[] expected = expectedRecords.get(i);
             assertTrue(Records.equals(expected, record));
-		}
-	}
+            i++;
+        }
+        assertEquals(expectedRecords.size(), i);
+    }
+
+	@Test
+    public void testScan_noPredicate() {
+        List<byte[]> records = insertRecords(recordFile);
+        testScanAll(records, recordFile.scan());
+    }
+
+    @Test
+    public void testScan_allTruePredicate() {
+        List<byte[]> records = insertRecords(recordFile);
+        testScanAll(records, recordFile.scan(r -> true));
+    }
 }

@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.record;
 
+import com.google.common.base.Predicate;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
@@ -8,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -252,65 +252,80 @@ public class RecordFile {
 	/**
 	 * Scan over all the records in this file.
 	 *
-	 * @return an <tt>Iterator</tt> to iterate through records
+	 * @return an <tt>Scan</tt> to iterate through records
 	 */
-	public Iterator<byte[]> scan() {
-		return new RecordIterator();
+	public Scan<byte[]> scan() {
+		return new RecordScan();
 	}
 
-	private class RecordIterator implements Iterator<byte[]> {
+	public Scan<byte[]> scan(Predicate<byte[]> predicate) {
+	    return new RecordScan(predicate);
+    }
 
+	private class RecordScan implements Scan<byte[]> {
+
+	    private final Predicate<byte[]> predicate;
 	    private final Iterator<Integer> pageIterator;
-	    // Invariant: recordPage and slotIterator should be null at the same time.
-        private RecordPage recordPage;
-        // Invariant: slotIterator should have next or be null
-        private Iterator<byte[]> slotIterator;
+	    private RecordPage recordPage;
+	    private Scan<byte[]> pageScan;
+	    private boolean closed;
 
-		RecordIterator() {
-		    logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
-		    logger.debug("numPages = {}", metadata.numPages);
-		    Set<Integer> targetPages = new TreeSet<>();
+	    RecordScan() {
+	        this(null);
+        }
+
+		RecordScan(Predicate<byte[]> predicate) {
+	        this.predicate = predicate;
+            logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
+            logger.debug("numPages = {}", metadata.numPages);
+            Set<Integer> targetPages = new TreeSet<>();
             for (int i = metadata.dataPageOffset; i < metadata.numPages; i++) {
                 targetPages.add(i);
             }
             pageIterator = targetPages.iterator();
 		}
 
-		@Override
-		public boolean hasNext() {
-			// FIXME consider deleted records (pages)
-            if (slotIterator != null) {
-                // A slotIterator always hasNext when it is not null.
+        @Override
+        public Optional<byte[]> next() {
+		    if (closed) {
+                throw new IllegalStateException("Scan is closed");
+            }
+		    // TODO consider deleted records and pages
+            if (pageScan != null) {
                 // One page is under scanning
-                return true;
+                Optional<byte[]> optionalRecord = pageScan.next();
+                if (optionalRecord.isPresent()) {
+                    return optionalRecord;
+                } else {
+                    pageScan.close();
+                    pageScan = null;
+                    unpinPage(recordPage);
+                    recordPage = null;
+                }
             }
             if (!pageIterator.hasNext()) {
                 // All pages finish scanning.
-                return false;
+                return Optional.empty();
             }
             // Start to scan a new page.
+            // TODO what if no record in this page satisfies predicate?
             int pageNum = pageIterator.next();
             recordPage = getRecordPage(pageNum);
-            slotIterator = recordPage.scan();
-            return slotIterator.hasNext();
-		}
-
-		@Override
-		public byte[] next() {
-			// FIXME consider deleted records
-            // FIXME what if slotIterator has no next? (all records in this page are deleted)
-            byte[] record = slotIterator.next();
-            if (!slotIterator.hasNext()) {
-                slotIterator = null;
-                unpinPage(recordPage);
-                recordPage = null;
+            pageScan = recordPage.scan(predicate);
+            Optional<byte[]> optionalRecord = pageScan.next();
+            if (!optionalRecord.isPresent()) {
+                throw new IllegalStateException();
             }
-            return record;
+            return optionalRecord;
         }
 
         @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
+        public void close() {
+            pageScan.close();
+            pageScan = null;
+            unpinPage(recordPage);
+            recordPage = null;
+            closed = true;
         }
     }
 

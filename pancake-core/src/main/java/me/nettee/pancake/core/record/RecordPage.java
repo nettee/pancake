@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.record;
 
+import com.google.common.base.Predicate;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import me.nettee.pancake.core.page.Pages;
@@ -11,8 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Iterator;
-import java.util.function.Predicate;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -358,34 +358,44 @@ public class RecordPage {
 		return page.getNum();
 	}
 
-	Iterator<byte[]> scan() {
-		return new RecordIterator();
-	}
-	
-	public class RecordIterator implements Iterator<byte[]> {
-		
-		private int currentSlotNum;
+    Scan<byte[]> scan(Predicate<byte[]> predicate) {
+	    return new RecordScan(predicate);
+    }
 
-		public RecordIterator() {
-			currentSlotNum = 0;
-		}
+    private class RecordScan implements Scan<byte[]> {
 
-		@Override
-		public boolean hasNext() {
-			// TODO take predicate into consideration
-			// FIXME consider deleted records
-			return currentSlotNum < header.numRecords;
-		}
+	    private final Predicate<byte[]> predicate;
+	    private int currentSlotNum;
+	    private boolean closed = false;
 
-		@Override
-		public byte[] next() {
-			// TODO take predicate into consideration
-			// FIXME consider deleted records
-			byte[] record = get(currentSlotNum);
-			currentSlotNum++;
-			return record;
-		}
-		
-	}
+        public RecordScan(Predicate<byte[]> predicate) {
+            this.predicate = predicate;
+            currentSlotNum = 0;
+        }
+
+        // TODO enable predicate
+        // TODO consider deleted records
+        @Override
+        public Optional<byte[]> next() {
+            if (closed) {
+                throw new IllegalStateException("Scan is closed");
+            }
+            while (true) {
+                if (currentSlotNum >= header.numRecords) {
+                    return Optional.empty();
+                }
+                byte[] record = get(currentSlotNum);
+                currentSlotNum++;
+                if (predicate == null || predicate.apply(record)) {
+                    return Optional.of(record);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+    }
 
 }
