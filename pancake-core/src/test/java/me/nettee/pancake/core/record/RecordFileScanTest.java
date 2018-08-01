@@ -109,6 +109,19 @@ public class RecordFileScanTest {
         assertEquals(expectedRecords.size(), i);
     }
 
+    private void testScanNone(Scan<byte[]> scan) {
+	    int c = 0;
+	    while (true) {
+            Optional<byte[]> optionalRecord = scan.next();
+            if (!optionalRecord.isPresent()) {
+                // End of scan.
+                break;
+            }
+            c++;
+        }
+        assertEquals(0, c);
+    }
+
 	@Test
     public void testScan_noPredicate() {
         List<byte[]> records = insertRecords(recordFile);
@@ -119,5 +132,11 @@ public class RecordFileScanTest {
     public void testScan_allTruePredicate() {
         List<byte[]> records = insertRecords(recordFile);
         testScanAll(records, recordFile.scan(r -> true));
+    }
+
+    @Test
+    public void testScan_allFalsePredicate() {
+	    List<byte[]> records = insertRecords(recordFile);
+	    testScanNone(recordFile.scan(r -> false));
     }
 }

@@ -1,6 +1,5 @@
 package me.nettee.pancake.core.record;
 
-import com.google.common.base.Predicate;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import me.nettee.pancake.core.page.Pages;
@@ -13,6 +12,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -386,7 +386,7 @@ public class RecordPage {
                 }
                 byte[] record = get(currentSlotNum);
                 currentSlotNum++;
-                if (predicate == null || predicate.apply(record)) {
+                if (predicate == null || predicate.test(record)) {
                     return Optional.of(record);
                 }
             }

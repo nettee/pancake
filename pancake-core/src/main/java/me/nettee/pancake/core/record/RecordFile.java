@@ -1,6 +1,5 @@
 package me.nettee.pancake.core.record;
 
-import com.google.common.base.Predicate;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
@@ -9,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -307,16 +307,23 @@ public class RecordFile {
                 // All pages finish scanning.
                 return Optional.empty();
             }
-            // Start to scan a new page.
-            // TODO what if no record in this page satisfies predicate?
-            int pageNum = pageIterator.next();
-            recordPage = getRecordPage(pageNum);
-            pageScan = recordPage.scan(predicate);
-            Optional<byte[]> optionalRecord = pageScan.next();
-            if (!optionalRecord.isPresent()) {
-                throw new IllegalStateException();
+            // Start to scan new pages.
+			while (pageIterator.hasNext()) {
+		        int pageNum = pageIterator.next();
+		        recordPage = getRecordPage(pageNum);
+		        pageScan = recordPage.scan(predicate);
+                Optional<byte[]> optionalRecord = pageScan.next();
+                if (optionalRecord.isPresent()) {
+                    return optionalRecord;
+                } else {
+                    // This page has no records that satisfy the predicate.
+                    pageScan.close();
+                    pageScan = null;
+                    unpinPage(recordPage);
+                    recordPage = null;
+                }
             }
-            return optionalRecord;
+            return Optional.empty();
         }
 
         @Override
