@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -129,14 +131,41 @@ public class RecordFileScanTest {
     }
 
     @Test
-    public void testScan_allTruePredicate() {
+    public void testScan_truePredicate() {
         List<byte[]> records = insertRecords(recordFile);
         testScanAll(records, recordFile.scan(r -> true));
     }
 
     @Test
-    public void testScan_allFalsePredicate() {
-	    List<byte[]> records = insertRecords(recordFile);
+    public void testScan_falsePredicate() {
+	    insertRecords(recordFile);
 	    testScanNone(recordFile.scan(r -> false));
+    }
+
+    @Test
+    public void testScan_allPredicate() {
+	    List<byte[]> records = insertRecords(recordFile);
+	    testScanAll(records, recordFile.scan(r -> new String(r).startsWith("rec")));
+    }
+
+    @Test
+    public void testScan_allNotPredicate() {
+	    insertRecords(recordFile);
+	    testScanNone(recordFile.scan(r -> new String(r).startsWith("cer")));
+    }
+
+    @Test
+    public void testScan_halfPredicate() {
+	    // TODO refactor: testScanPartial
+        List<byte[]> records = insertRecords(recordFile);
+        Predicate<byte[]> predicate = r -> {
+            String s = new String(r);
+            int i = Integer.valueOf(s.substring(4));
+            return i % 2 == 0;
+        };
+        List<byte[]> targetRecords = records.stream()
+                .filter(predicate)
+                .collect(Collectors.toList());
+        testScanAll(targetRecords, recordFile.scan(predicate));
     }
 }
