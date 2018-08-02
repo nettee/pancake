@@ -35,13 +35,13 @@ public class RecordFileScanTest {
 	@Parameterized.Parameters(name="{0} rounds")
 	public static Collection data() {
 		Object[][] data = {
-				{1},
-				{RandomUtils.nextInt(2, CAPACITY)},
-				{CAPACITY},
+//				{1},
+//				{RandomUtils.nextInt(2, CAPACITY)},
+//				{CAPACITY},
 				{CAPACITY + 1},
-                {2 * CAPACITY + 5},
-				{RandomUtils.nextInt(2, 10) * CAPACITY},
-				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
+//                {2 * CAPACITY + 5},
+//				{RandomUtils.nextInt(2, 10) * CAPACITY},
+//				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
 		};
 		return Arrays.asList(data);
 	}
@@ -93,6 +93,19 @@ public class RecordFileScanTest {
         }
 
         return records;
+    }
+
+    private void debugScan(Scan<byte[]> scan) {
+	    while (true) {
+	        Optional<byte[]> optionalRecord = scan.next();
+	        if (!optionalRecord.isPresent()) {
+	            // End of scan.
+                break;
+            }
+            byte[] record = optionalRecord.get();
+	        String str = new String(record);
+	        System.out.println(str);
+        }
     }
 
     private void testScanAll(List<byte[]> expectedRecords, Scan<byte[]> scan) {
@@ -176,5 +189,11 @@ public class RecordFileScanTest {
             return i % 2 == 0;
         };
         testScanPartial(records, predicate, recordFile.scan(predicate));
+    }
+
+    @Test
+    public void testScanWithDeletedRecords() {
+	    insertRecords(recordFile);
+	    debugScan(recordFile.scan());
     }
 }

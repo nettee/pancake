@@ -123,4 +123,9 @@ public class RecordFileCrudTest {
 			recordFile.getRecord(rid);
 		}
 	}
+
+	@Test
+    public void testReInsert() {
+
+    }
 }
