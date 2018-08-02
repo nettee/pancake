@@ -252,64 +252,89 @@ public class RecordFile {
 	/**
 	 * Scan over all the records in this file.
 	 *
-	 * @return an <tt>Iterator</tt> to iterate through records
+	 * @return an <tt>Scan</tt> to iterate through records
 	 */
-	public Iterator<byte[]> scan() {
-		return new RecordIterator();
+	public Scan<byte[]> scan() {
+		return new RecordScan();
 	}
 
-	/**
-	 * Scan over the records in this file that satisfies predicate
-	 * <tt>pred</tt>.
-	 *
-	 * @param predicate predicate on record data
-	 * @return an <tt>Iterator</tt> to iterate through records
-	 */
-	public Iterator<byte[]> scan(Predicate<byte[]> predicate) {
-		return new RecordIterator(predicate);
-	}
+	public Scan<byte[]> scan(Predicate<byte[]> predicate) {
+	    return new RecordScan(predicate);
+    }
 
-	private class RecordIterator implements Iterator<byte[]> {
+	private class RecordScan implements Scan<byte[]> {
 
-		private final Optional<Predicate<byte[]>> predicate;
-		
-		private Iterator<byte[]> iterator;
-		
-		RecordIterator() {
-			this(null);
+	    private final Predicate<byte[]> predicate;
+	    private final Iterator<Integer> pageIterator;
+	    private RecordPage recordPage;
+	    private Scan<byte[]> pageScan;
+	    private boolean closed;
+
+	    RecordScan() {
+	        this(null);
+        }
+
+		RecordScan(Predicate<byte[]> predicate) {
+	        this.predicate = predicate;
+            logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
+            logger.debug("numPages = {}", metadata.numPages);
+            Set<Integer> targetPages = new TreeSet<>();
+            for (int i = metadata.dataPageOffset; i < metadata.numPages; i++) {
+                targetPages.add(i);
+            }
+            pageIterator = targetPages.iterator();
 		}
 
-		RecordIterator(Predicate<byte[]> predicate) {
-			this.predicate = Optional.ofNullable(predicate);
-			List<byte[]> allRecords = new ArrayList<>();
-			logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
-			logger.debug("numOfPages = {}", metadata.numPages);
-			for (int pageNum = metadata.dataPageOffset; pageNum < metadata.numPages; pageNum++) {
-				RecordPage recordPage = getRecordPage(pageNum);
-				logger.debug("page[{}]", pageNum);
-				Iterator<byte[]> recordIterator = recordPage.scan(predicate);
-				while (recordIterator.hasNext()) {
-					byte[] record = recordIterator.next();
-					allRecords.add(record);
-				}
-			}
-			iterator = allRecords.iterator();
-			// XXX improve efficiency
-		}
-		
-		@Override
-		public boolean hasNext() {
-			// FIXME consider deleted records
-			return iterator.hasNext();
-		}
+        @Override
+        public Optional<byte[]> next() {
+		    if (closed) {
+                throw new IllegalStateException("Scan is closed");
+            }
+		    // TODO consider deleted records and pages
+            if (pageScan != null) {
+                // One page is under scanning
+                Optional<byte[]> optionalRecord = pageScan.next();
+                if (optionalRecord.isPresent()) {
+                    return optionalRecord;
+                } else {
+                    pageScan.close();
+                    pageScan = null;
+                    unpinPage(recordPage);
+                    recordPage = null;
+                }
+            }
+            if (!pageIterator.hasNext()) {
+                // All pages finish scanning.
+                return Optional.empty();
+            }
+            // Start to scan new pages.
+			while (pageIterator.hasNext()) {
+		        int pageNum = pageIterator.next();
+		        recordPage = getRecordPage(pageNum);
+		        pageScan = recordPage.scan(predicate);
+                Optional<byte[]> optionalRecord = pageScan.next();
+                if (optionalRecord.isPresent()) {
+                    return optionalRecord;
+                } else {
+                    // This page has no records that satisfy the predicate.
+                    pageScan.close();
+                    pageScan = null;
+                    unpinPage(recordPage);
+                    recordPage = null;
+                }
+            }
+            return Optional.empty();
+        }
 
-		@Override
-		public byte[] next() {
-			// FIXME consider deleted records
-			return iterator.next();
-		}
-
-	}
+        @Override
+        public void close() {
+            pageScan.close();
+            pageScan = null;
+            unpinPage(recordPage);
+            recordPage = null;
+            closed = true;
+        }
+    }
 
 	/**
 	 * Make the page pinned again in paged file.
