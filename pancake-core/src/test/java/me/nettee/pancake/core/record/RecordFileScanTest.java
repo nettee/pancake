@@ -124,6 +124,15 @@ public class RecordFileScanTest {
         assertEquals(0, c);
     }
 
+    private void testScanPartial(List<byte[]> allRecords,
+                                 Predicate<byte[]> predicate,
+                                 Scan<byte[]> scan) {
+        List<byte[]> targetRecords = allRecords.stream()
+                .filter(predicate)
+                .collect(Collectors.toList());
+        testScanAll(targetRecords, scan);
+    }
+
 	@Test
     public void testScan_noPredicate() {
         List<byte[]> records = insertRecords(recordFile);
@@ -133,39 +142,39 @@ public class RecordFileScanTest {
     @Test
     public void testScan_truePredicate() {
         List<byte[]> records = insertRecords(recordFile);
-        testScanAll(records, recordFile.scan(r -> true));
+        Predicate<byte[]> predicate = r -> true;
+        testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_falsePredicate() {
 	    insertRecords(recordFile);
-	    testScanNone(recordFile.scan(r -> false));
+        Predicate<byte[]> predicate = r -> false;
+        testScanNone(recordFile.scan(predicate));
     }
 
     @Test
-    public void testScan_allPredicate() {
+    public void testScan_allTruePredicate() {
 	    List<byte[]> records = insertRecords(recordFile);
-	    testScanAll(records, recordFile.scan(r -> new String(r).startsWith("rec")));
+        Predicate<byte[]> predicate = r -> new String(r).startsWith("rec");
+        testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
-    public void testScan_allNotPredicate() {
+    public void testScan_allFalsePredicate() {
 	    insertRecords(recordFile);
-	    testScanNone(recordFile.scan(r -> new String(r).startsWith("cer")));
+        Predicate<byte[]> predicate = r -> new String(r).startsWith("cer");
+        testScanNone(recordFile.scan(predicate));
     }
 
     @Test
-    public void testScan_halfPredicate() {
-	    // TODO refactor: testScanPartial
+    public void testScan_partialTruePredicate() {
         List<byte[]> records = insertRecords(recordFile);
         Predicate<byte[]> predicate = r -> {
             String s = new String(r);
             int i = Integer.valueOf(s.substring(4));
             return i % 2 == 0;
         };
-        List<byte[]> targetRecords = records.stream()
-                .filter(predicate)
-                .collect(Collectors.toList());
-        testScanAll(targetRecords, recordFile.scan(predicate));
+        testScanPartial(records, predicate, recordFile.scan(predicate));
     }
 }
