@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -156,20 +155,20 @@ public class RecordFile {
 	}
 
 	/**
-	 * Insert <tt>data</tt> as a new record in file.
+	 * Insert new record in file.
 	 * 
-	 * @param data record data
+	 * @param record the record object
 	 * @return record identifier <tt>RID</tt>
 	 */
-	public RID insertRecord(byte[] data) {
-		checkArgument(data.length == metadata.recordSize);
+	public RID insertRecord(Record record) {
+		checkArgument(record.getLength() == metadata.recordSize);
 		RecordPage recordPage = getFreeRecordPage();
 		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
-		int insertedSlotNum = recordPage.insert(data);
+		int insertedSlotNum = recordPage.insert(record.getData());
 		metadata.numRecords += 1;
-		logger.info("Inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
-				new String(data, StandardCharsets.US_ASCII));
+		logger.info("Inserted record[{},{}] <{}>",
+				insertedPageNum, insertedSlotNum, record.toString());
 		unpinPage(recordPage);
 		if (recordPage.isFull()) {
 			logger.info("Record page[{}] now becomes full", recordPage.getPageNum());
@@ -179,18 +178,19 @@ public class RecordFile {
 	}
 
 	/**
-	 * Get the record data identified by <tt>rid</tt>.
+	 * Get the record identified by <tt>rid</tt>.
 	 * 
 	 * @param rid record identification
-	 * @return record data
+	 * @return record
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
-	public byte[] getRecord(RID rid) {
+	public Record getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		try {
-			byte[] record = recordPage.get(rid.slotNum);
-			logger.info("Got record[{},{}] = <{}>", rid.pageNum, rid.slotNum,
-					new String(record, StandardCharsets.US_ASCII));
+			byte[] data = recordPage.get(rid.slotNum);
+			Record record = new Record(data);
+			logger.info("Got record[{},{}] = <{}>",
+                    rid.pageNum, rid.slotNum, record.toString());
 			unpinPage(recordPage);
 			return record;
 		} catch (RecordNotExistException e) {
@@ -202,19 +202,19 @@ public class RecordFile {
 
 	/**
 	 * Update the record identified by <tt>rid</tt>. The existing contents of
-	 * the record will be replaced by <tt>data</tt>.
+	 * the record will be replaced by <tt>record</tt>.
 	 * 
 	 * @param rid record identification
-	 * @param data replacement
+	 * @param record replacement
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
-	public void updateRecord(RID rid, byte[] data) {
-		checkArgument(data.length == metadata.recordSize);
+	public void updateRecord(RID rid, Record record) {
+		checkArgument(record.getLength() == metadata.recordSize);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		try {
-			recordPage.update(rid.slotNum, data);
-			logger.info("Updated record[{},{}] to <{}>", rid.pageNum, rid.slotNum,
-					new String(data, StandardCharsets.US_ASCII));
+			recordPage.update(rid.slotNum, record.getData());
+			logger.info("Updated record[{},{}] to <{}>",
+                    rid.pageNum, rid.slotNum, record.toString());
 			unpinPage(recordPage);
 		} catch (RecordNotExistException e) {
 			logger.error(e.getMessage());
@@ -254,15 +254,15 @@ public class RecordFile {
 	 *
 	 * @return an <tt>Scan</tt> to iterate through records
 	 */
-	public Scan<byte[]> scan() {
+	public Scan<Record> scan() {
 		return new RecordScan();
 	}
 
-	public Scan<byte[]> scan(Predicate<byte[]> predicate) {
+	public Scan<Record> scan(Predicate<Record> predicate) {
 	    return new RecordScan(predicate);
     }
 
-	private class RecordScan implements Scan<byte[]> {
+	private class RecordScan implements Scan<Record> {
 
 	    private final Predicate<byte[]> predicate;
 	    private final Iterator<Integer> pageIterator;
@@ -274,8 +274,8 @@ public class RecordFile {
 	        this(null);
         }
 
-		RecordScan(Predicate<byte[]> predicate) {
-	        this.predicate = predicate;
+		RecordScan(Predicate<Record> p) {
+	        this.predicate = data -> p == null || p.test(new Record(data));
             logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
             logger.debug("numPages = {}", metadata.numPages);
             Set<Integer> targetPages = new TreeSet<>();
@@ -286,7 +286,7 @@ public class RecordFile {
 		}
 
         @Override
-        public Optional<byte[]> next() {
+        public Optional<Record> next() {
 		    if (closed) {
                 throw new IllegalStateException("Scan is closed");
             }
@@ -295,7 +295,7 @@ public class RecordFile {
                 // One page is under scanning
                 Optional<byte[]> optionalRecord = pageScan.next();
                 if (optionalRecord.isPresent()) {
-                    return optionalRecord;
+                    return Optional.of(new Record(optionalRecord.get()));
                 } else {
                     pageScan.close();
                     pageScan = null;
@@ -314,7 +314,7 @@ public class RecordFile {
 		        pageScan = recordPage.scan(predicate);
                 Optional<byte[]> optionalRecord = pageScan.next();
                 if (optionalRecord.isPresent()) {
-                    return optionalRecord;
+                    return Optional.of(new Record(optionalRecord.get()));
                 } else {
                     // This page has no records that satisfy the predicate.
                     pageScan.close();

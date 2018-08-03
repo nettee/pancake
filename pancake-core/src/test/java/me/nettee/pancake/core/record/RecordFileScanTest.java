@@ -1,7 +1,6 @@
 package me.nettee.pancake.core.record;
 
 import me.nettee.pancake.core.page.Pages;
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -18,7 +17,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class RecordFileScanTest {
@@ -67,12 +65,12 @@ public class RecordFileScanTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	private List<byte[]> insertRecords(RecordFile recordFile) {
+	private List<Record> insertRecords(RecordFile recordFile) {
         List<RID> rids = new ArrayList<>();
-        List<byte[]> records = new ArrayList<>();
+        List<Record> records = new ArrayList<>();
         for (int i = 0; i < rounds; i++) {
             String str = String.format("rec-%04d", i);
-            byte[] record = str.getBytes();
+            Record record = Record.fromString(str);
             records.add(record);
             RID rid = recordFile.insertRecord(record);
             rids.add(rid);
@@ -95,39 +93,38 @@ public class RecordFileScanTest {
         return records;
     }
 
-    private void debugScan(Scan<byte[]> scan) {
+    private void debugScan(Scan<Record> scan) {
 	    while (true) {
-	        Optional<byte[]> optionalRecord = scan.next();
+	        Optional<Record> optionalRecord = scan.next();
 	        if (!optionalRecord.isPresent()) {
 	            // End of scan.
                 break;
             }
-            byte[] record = optionalRecord.get();
-	        String str = new String(record);
-	        System.out.println(str);
+            Record record = optionalRecord.get();
+	        System.out.println(record.toString());
         }
     }
 
-    private void testScanAll(List<byte[]> expectedRecords, Scan<byte[]> scan) {
+    private void testScanAll(List<Record> expectedRecords, Scan<Record> scan) {
         int i = 0;
         while (true) {
-            Optional<byte[]> optionalRecord = scan.next();
+            Optional<Record> optionalRecord = scan.next();
             if (!optionalRecord.isPresent()) {
                 // End of scan.
                 break;
             }
-            byte[] record = optionalRecord.get();
-            byte[] expected = expectedRecords.get(i);
-            assertTrue(Records.equals(expected, record));
+            Record record = optionalRecord.get();
+            Record expected = expectedRecords.get(i);
+            assertEquals(expected, record);
             i++;
         }
         assertEquals(expectedRecords.size(), i);
     }
 
-    private void testScanNone(Scan<byte[]> scan) {
+    private void testScanNone(Scan<Record> scan) {
 	    int c = 0;
 	    while (true) {
-            Optional<byte[]> optionalRecord = scan.next();
+            Optional<Record> optionalRecord = scan.next();
             if (!optionalRecord.isPresent()) {
                 // End of scan.
                 break;
@@ -137,10 +134,10 @@ public class RecordFileScanTest {
         assertEquals(0, c);
     }
 
-    private void testScanPartial(List<byte[]> allRecords,
-                                 Predicate<byte[]> predicate,
-                                 Scan<byte[]> scan) {
-        List<byte[]> targetRecords = allRecords.stream()
+    private void testScanPartial(List<Record> allRecords,
+                                 Predicate<Record> predicate,
+                                 Scan<Record> scan) {
+        List<Record> targetRecords = allRecords.stream()
                 .filter(predicate)
                 .collect(Collectors.toList());
         testScanAll(targetRecords, scan);
@@ -148,43 +145,43 @@ public class RecordFileScanTest {
 
 	@Test
     public void testScan_noPredicate() {
-        List<byte[]> records = insertRecords(recordFile);
+        List<Record> records = insertRecords(recordFile);
         testScanAll(records, recordFile.scan());
     }
 
     @Test
     public void testScan_truePredicate() {
-        List<byte[]> records = insertRecords(recordFile);
-        Predicate<byte[]> predicate = r -> true;
+        List<Record> records = insertRecords(recordFile);
+        Predicate<Record> predicate = r -> true;
         testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_falsePredicate() {
 	    insertRecords(recordFile);
-        Predicate<byte[]> predicate = r -> false;
+        Predicate<Record> predicate = r -> false;
         testScanNone(recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_allTruePredicate() {
-	    List<byte[]> records = insertRecords(recordFile);
-        Predicate<byte[]> predicate = r -> new String(r).startsWith("rec");
+	    List<Record> records = insertRecords(recordFile);
+        Predicate<Record> predicate = r -> r.toString().startsWith("rec");
         testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_allFalsePredicate() {
 	    insertRecords(recordFile);
-        Predicate<byte[]> predicate = r -> new String(r).startsWith("cer");
+        Predicate<Record> predicate = r -> r.toString().startsWith("cer");
         testScanNone(recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_partialTruePredicate() {
-        List<byte[]> records = insertRecords(recordFile);
-        Predicate<byte[]> predicate = r -> {
-            String s = new String(r);
+        List<Record> records = insertRecords(recordFile);
+        Predicate<Record> predicate = r -> {
+            String s = r.toString();
             int i = Integer.valueOf(s.substring(4));
             return i % 2 == 0;
         };

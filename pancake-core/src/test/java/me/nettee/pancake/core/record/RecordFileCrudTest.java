@@ -68,7 +68,7 @@ public class RecordFileCrudTest {
 	public void testInsert() {
 		for (int i = 0; i < rounds; i++) {
 			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE - 1) + " ";
-			recordFile.insertRecord(str.getBytes());
+			recordFile.insertRecord(Record.fromString(str));
 		}
 	}
 
@@ -77,14 +77,14 @@ public class RecordFileCrudTest {
 		List<Pair<RID, String>> records = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
+			RID rid = recordFile.insertRecord(Record.fromString(str));
 			records.add(new ImmutablePair<>(rid, str));
 		}
 		for (Pair<RID, String> record : records) {
 			RID rid = record.getLeft();
 			String str = record.getRight();
-			byte[] data = recordFile.getRecord(rid);
-			assertEquals(str, new String(data, StandardCharsets.US_ASCII));
+			Record r = recordFile.getRecord(rid);
+			assertEquals(str, r.toString());
 		}
 	}
 	
@@ -93,15 +93,15 @@ public class RecordFileCrudTest {
 		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
+			RID rid = recordFile.insertRecord(Record.fromString(str));
 			rids.add(rid);
 		}
 		Collections.shuffle(rids);
 		for (RID rid : rids) {
 			String newStr = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			recordFile.updateRecord(rid, newStr.getBytes());
-			byte[] data = recordFile.getRecord(rid);
-			assertEquals(newStr, new String(data, StandardCharsets.US_ASCII));
+			recordFile.updateRecord(rid, Record.fromString(newStr));
+			Record r = recordFile.getRecord(rid);
+			assertEquals(newStr, r.toString());
 		}
 	}
 
@@ -110,7 +110,7 @@ public class RecordFileCrudTest {
 		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
 			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
+			RID rid = recordFile.insertRecord(Record.fromString(str));
 			rids.add(rid);
 		}
 		Collections.shuffle(rids);
