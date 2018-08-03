@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.record;
 
+import com.sun.org.apache.regexp.internal.RE;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -14,12 +15,11 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
+import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRandomRecords;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class RecordFileCrudTest {
@@ -76,12 +76,11 @@ public class RecordFileCrudTest {
      */
 	@Test
 	public void testInsert() {
-	    List<RID> rids = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-            Record record = randomRecord();
-            RID rid = recordFile.insertRecord(record);
-            rids.add(rid);
-        }
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
         Set<RID> ridSet = new HashSet<>(rids);
 		assertEquals(rids.size(), ridSet.size());
 	}
@@ -91,15 +90,11 @@ public class RecordFileCrudTest {
      */
 	@Test
 	public void testGet() {
-		List<Pair<RID, Record>> insertedRecords = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-            Record record = randomRecord();
-			RID rid = recordFile.insertRecord(record);
-			insertedRecords.add(new ImmutablePair<>(rid, record));
-		}
-		for (Pair<RID, Record> pair : insertedRecords) {
-			RID rid = pair.getLeft();
-			Record expectedRecord = pair.getRight();
+		List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        for (Pair<Record, RID> pair : insertedRecords) {
+            RID rid = pair.getRight();
+			Record expectedRecord = pair.getLeft();
 			Record actualRecord = recordFile.getRecord(rid);
 			assertEquals(expectedRecord, actualRecord);
 		}
@@ -111,13 +106,12 @@ public class RecordFileCrudTest {
      */
 	@Test
 	public void testUpdate() {
-		List<RID> rids = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-		    Record record = randomRecord();
-			RID rid = recordFile.insertRecord(record);
-			rids.add(rid);
-		}
-		Collections.shuffle(rids);
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        Collections.shuffle(rids);
 		for (RID rid : rids) {
 		    Record newRecord = randomRecord();
 			recordFile.updateRecord(rid, newRecord);
@@ -132,12 +126,11 @@ public class RecordFileCrudTest {
      */
 	@Test
 	public void testDelete() {
-		List<RID> rids = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-		    Record record = randomRecord();
-			RID rid = recordFile.insertRecord(record);
-			rids.add(rid);
-		}
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
 		Collections.shuffle(rids);
 		for (RID rid : rids) {
 			recordFile.deleteRecord(rid);
