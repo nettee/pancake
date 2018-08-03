@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
@@ -64,53 +65,77 @@ public class RecordFileCrudTest {
 		recordFile.close();
 	}
 
+	private Record randomRecord() {
+	    String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+	    return Record.fromString(str);
+    }
+
+    /**
+     * Records can be inserted into a record file. The RIDs of each record
+     * must be unique.
+     */
 	@Test
 	public void testInsert() {
+	    List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE - 1) + " ";
-			recordFile.insertRecord(Record.fromString(str));
+            Record record = randomRecord();
+            RID rid = recordFile.insertRecord(record);
+            rids.add(rid);
+        }
+        Set<RID> ridSet = new HashSet<>(rids);
+		assertEquals(rids.size(), ridSet.size());
+	}
+
+    /**
+     * The inserted records can be retrieved by their RIDs.
+     */
+	@Test
+	public void testGet() {
+		List<Pair<RID, Record>> insertedRecords = new ArrayList<>();
+		for (int i = 0; i < rounds; i++) {
+            Record record = randomRecord();
+			RID rid = recordFile.insertRecord(record);
+			insertedRecords.add(new ImmutablePair<>(rid, record));
+		}
+		for (Pair<RID, Record> pair : insertedRecords) {
+			RID rid = pair.getLeft();
+			Record expectedRecord = pair.getRight();
+			Record actualRecord = recordFile.getRecord(rid);
+			assertEquals(expectedRecord, actualRecord);
 		}
 	}
 
-	@Test
-	public void testGet() {
-		List<Pair<RID, String>> records = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(Record.fromString(str));
-			records.add(new ImmutablePair<>(rid, str));
-		}
-		for (Pair<RID, String> record : records) {
-			RID rid = record.getLeft();
-			String str = record.getRight();
-			Record r = recordFile.getRecord(rid);
-			assertEquals(str, r.toString());
-		}
-	}
-	
+    /**
+     * If we update a record and retrieve its content, we will get the updated
+     * content.
+     */
 	@Test
 	public void testUpdate() {
 		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(Record.fromString(str));
+		    Record record = randomRecord();
+			RID rid = recordFile.insertRecord(record);
 			rids.add(rid);
 		}
 		Collections.shuffle(rids);
 		for (RID rid : rids) {
-			String newStr = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			recordFile.updateRecord(rid, Record.fromString(newStr));
-			Record r = recordFile.getRecord(rid);
-			assertEquals(newStr, r.toString());
+		    Record newRecord = randomRecord();
+			recordFile.updateRecord(rid, newRecord);
+			Record actualRecord = recordFile.getRecord(rid);
+			assertEquals(newRecord, actualRecord);
 		}
 	}
 
+    /**
+     * If we retrieve a deleted record (via its RID), an exception will be
+     * thrown.
+     */
 	@Test
 	public void testDelete() {
 		List<RID> rids = new ArrayList<>();
 		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(Record.fromString(str));
+		    Record record = randomRecord();
+			RID rid = recordFile.insertRecord(record);
 			rids.add(rid);
 		}
 		Collections.shuffle(rids);

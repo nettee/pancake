@@ -21,7 +21,17 @@ public class RID {
 		this.slotNum = slotNum;
 	}
 
-	@Override
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof RID)) {
+            return false;
+        }
+        RID that = (RID) obj;
+        return this.pageNum == that.pageNum
+                && this.slotNum == that.slotNum;
+    }
+
+    @Override
 	public String toString() {
 		return String.format("<%d,%d>", pageNum, slotNum);
 	}
