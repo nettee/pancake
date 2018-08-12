@@ -1,9 +1,7 @@
 package me.nettee.pancake.core.record;
 
-import com.sun.org.apache.regexp.internal.RE;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -13,16 +11,21 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static me.nettee.pancake.core.record.RecordFileTestUtils.getRandomRecord;
 import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRandomRecords;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class RecordFileCrudTest {
+
+    private static Logger logger = LoggerFactory.getLogger(RecordFileCrudTest.class);
 
 	private static final int RECORD_SIZE = 8;
 	private static final int CAPACITY = 500;
@@ -124,6 +127,7 @@ public class RecordFileCrudTest {
      * If we retrieve a deleted record (via its RID), an exception will be
      * thrown.
      */
+    // FIXME mark page as free after deleting one record.
 	@Test
 	public void testDelete() {
         List<Pair<Record, RID>> insertedRecords =
@@ -142,8 +146,34 @@ public class RecordFileCrudTest {
 		}
 	}
 
+    /**
+     * TODO
+     */
 	@Test
     public void testReInsert() {
+		List<Pair<Record, RID>> insertedRecords =
+				insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+		List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        List<Integer> pageNums = rids.stream()
+                .map(rid -> rid.pageNum)
+                .distinct()
+                .collect(Collectors.toList());
+        System.out.printf("PageNums: %s\n", pageNums.stream()
+                .map(pageNum -> String.valueOf(pageNum))
+                .collect(Collectors.joining(", ", "[", "]")));
 
+		// Randomly delete one record.
+        int i = RandomUtils.nextInt(0, insertedRecords.size());
+        Pair<Record, RID> pair = insertedRecords.get(i);
+        RID rid = pair.getRight();
+        recordFile.deleteRecord(rid);
+        logger.debug("Record[{}] deleted", rid);
+        System.out.printf("Record[%s] deleted\n", rid);
+        Record newRecord = getRandomRecord(RECORD_SIZE);
+        RID newRid = recordFile.insertRecord(newRecord);
+        logger.debug("New RID: {}", newRid);
+        System.out.printf("New RID: %s\n", newRid);
     }
 }

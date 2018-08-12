@@ -45,10 +45,12 @@ public class RecordFileTestUtils {
     static List<Pair<Record, RID>> insertRandomRecords(RecordFile recordFile,
                                                        int N,
                                                        int recordSize) {
-        return insertRecords(recordFile, N, i -> {
-            String str = RandomStringUtils.randomAlphabetic(recordSize);
-            return Record.fromString(str);
-        });
+        return insertRecords(recordFile, N, i -> getRandomRecord(recordSize));
+    }
+
+    static Record getRandomRecord(int recordSize) {
+        String str = RandomStringUtils.randomAlphabetic(recordSize);
+        return Record.fromString(str);
     }
 
 }

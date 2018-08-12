@@ -125,7 +125,7 @@ public class RecordFile {
 		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
 			RecordPage recordPage = createRecordPage();
 			metadata.firstFreePage = recordPage.getPageNum();
-			logger.info("Created record page[{}]", recordPage.getPageNum());
+			logger.info("No free pages, created record page[{}]", recordPage.getPageNum());
 			return recordPage;
 		} else {
 			return getRecordPage(metadata.firstFreePage);
