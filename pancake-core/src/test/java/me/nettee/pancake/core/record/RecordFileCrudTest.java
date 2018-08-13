@@ -127,7 +127,6 @@ public class RecordFileCrudTest {
      * If we retrieve a deleted record (via its RID), an exception will be
      * thrown.
      */
-    // FIXME mark page as free after deleting one record.
 	@Test
 	public void testDelete() {
         List<Pair<Record, RID>> insertedRecords =

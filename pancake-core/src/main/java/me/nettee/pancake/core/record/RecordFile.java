@@ -228,6 +228,7 @@ public class RecordFile {
 	 * @param rid record identification
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
+	// FIXME mark page as free after deleting one record.
 	public void deleteRecord(RID rid) {
 		logger.debug("Deleting record[{},{}]", rid.pageNum, rid.slotNum);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
@@ -241,7 +242,12 @@ public class RecordFile {
 				logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
 				recordPage.setNextFreePage(metadata.firstFreePage);
 				metadata.firstFreePage = recordPage.getPageNum();
-			}
+			} else {
+			    // TODO what if one page is inserted more than once?
+			    logger.info("Record page[{}] is now half empty", recordPage.getPageNum());
+			    recordPage.setNextFreePage(metadata.firstFreePage);
+			    metadata.firstFreePage = recordPage.getPageNum();
+            }
 		} catch (RecordNotExistException e) {
 			logger.error(e.getMessage());
 			unpinPage(recordPage);
