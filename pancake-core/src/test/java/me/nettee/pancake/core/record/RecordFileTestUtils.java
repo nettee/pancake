@@ -2,6 +2,7 @@ package me.nettee.pancake.core.record;
 
 import me.nettee.pancake.core.page.Pages;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -53,4 +54,27 @@ public class RecordFileTestUtils {
         return Record.fromString(str);
     }
 
+    static <E> E pickOne(List<E> list) {
+        int i = RandomUtils.nextInt(0, list.size());
+        return list.get(i);
+    }
+
+    static <E> List<E> pickSome(List<E> list, int m) {
+        List<E> res = new ArrayList<>(m);
+        int nNeeded = m;
+        int nLeft = list.size();
+        for (E e : list) {
+            // Pick the element with probability nNeeded / nLeft
+            int r = RandomUtils.nextInt(0, nLeft);
+            if (r < nNeeded) {
+                res.add(e);
+                nNeeded--;
+                if (nNeeded == 0) {
+                    break;
+                }
+            }
+            nLeft--;
+        }
+        return res;
+    }
 }

@@ -11,7 +11,7 @@ package me.nettee.pancake.core.record;
  * @author nettee
  *
  */
-public class RID {
+public class RID implements Comparable<RID> {
 
 	public int pageNum;
 	public int slotNum;
@@ -22,17 +22,34 @@ public class RID {
 	}
 
     @Override
+    public int compareTo(RID that) {
+        if (this.pageNum < that.pageNum) {
+            return -1;
+        } else if (this.pageNum > that.pageNum) {
+            return 1;
+        } else {
+            if (this.slotNum < that.slotNum) {
+                return -1;
+            } else if (this.slotNum > that.slotNum) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof RID)) {
             return false;
         }
         RID that = (RID) obj;
-        return this.pageNum == that.pageNum
-                && this.slotNum == that.slotNum;
+        return this.compareTo(that) == 0;
     }
 
     @Override
 	public String toString() {
 		return String.format("<%d,%d>", pageNum, slotNum);
 	}
+
 }
