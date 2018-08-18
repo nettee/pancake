@@ -231,6 +231,7 @@ public class RecordFile {
 	public void deleteRecord(RID rid) {
 		logger.debug("Deleting record[{},{}]", rid.pageNum, rid.slotNum);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
+		boolean awayFromFull = recordPage.isFull();
 		try {
 			markDirty(recordPage);
 			recordPage.delete(rid.slotNum);
@@ -240,9 +241,14 @@ public class RecordFile {
 			if (recordPage.isEmpty()) {
 				logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
 				insertFreePage(recordPage);
-			} else {
-			    // TODO what if one page is inserted more than once?
-                // TODO when this page is not marked as free, mark it as free
+			} else if (awayFromFull) {
+			    /*
+			    When the first record from a full page is deleted, mark this
+			    page as free and insert it into the linked list. No page will be
+			    inserted twice in the linked list, because we insert record into
+			    the first page of the linked list first, and remove it from the
+			    linked list once it becomes full.
+			     */
 			    logger.info("Record page[{}] is now half empty", recordPage.getPageNum());
 			    insertFreePage(recordPage);
             }
