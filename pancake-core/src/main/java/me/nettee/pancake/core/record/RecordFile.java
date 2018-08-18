@@ -121,14 +121,14 @@ public class RecordFile {
 		}
 	}
 
-	private RecordPage getFreeRecordPage() {
-		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+	private RecordPage getOneFreeRecordPage() {
+		if (hasFreePages()) {
+            return getFirstFreePage();
+        } else {
 			RecordPage recordPage = createRecordPage();
-			metadata.firstFreePage = recordPage.getPageNum();
+			insertFreePage(recordPage);
 			logger.info("No free pages, created record page[{}]", recordPage.getPageNum());
 			return recordPage;
-		} else {
-			return getRecordPage(metadata.firstFreePage);
 		}
 
 	}
@@ -162,7 +162,7 @@ public class RecordFile {
 	 */
 	public RID insertRecord(Record record) {
 		checkArgument(record.getLength() == metadata.recordSize);
-		RecordPage recordPage = getFreeRecordPage();
+		RecordPage recordPage = getOneFreeRecordPage();
 		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(record.getData());
@@ -172,7 +172,7 @@ public class RecordFile {
 		unpinPage(recordPage);
 		if (recordPage.isFull()) {
 			logger.info("Record page[{}] now becomes full", recordPage.getPageNum());
-			metadata.firstFreePage = recordPage.getNextFreePage();
+			removeFirstFreePage(recordPage);
 		}
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
@@ -228,7 +228,6 @@ public class RecordFile {
 	 * @param rid record identification
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
-	// FIXME mark page as free after deleting one record.
 	public void deleteRecord(RID rid) {
 		logger.debug("Deleting record[{},{}]", rid.pageNum, rid.slotNum);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
@@ -240,13 +239,12 @@ public class RecordFile {
 			unpinPage(recordPage);
 			if (recordPage.isEmpty()) {
 				logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
-				recordPage.setNextFreePage(metadata.firstFreePage);
-				metadata.firstFreePage = recordPage.getPageNum();
+				insertFreePage(recordPage);
 			} else {
 			    // TODO what if one page is inserted more than once?
+                // TODO when this page is not marked as free, mark it as free
 			    logger.info("Record page[{}] is now half empty", recordPage.getPageNum());
-			    recordPage.setNextFreePage(metadata.firstFreePage);
-			    metadata.firstFreePage = recordPage.getPageNum();
+			    insertFreePage(recordPage);
             }
 		} catch (RecordNotExistException e) {
 			logger.error(e.getMessage());
@@ -254,6 +252,29 @@ public class RecordFile {
 			throw e;
 		}
 	}
+
+	private void insertFreePage(RecordPage recordPage) {
+	    // Insert the number of this page as the header node of linked list.
+        if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+            metadata.firstFreePage = recordPage.getPageNum();
+        } else {
+            recordPage.setNextFreePage(metadata.firstFreePage);
+            metadata.firstFreePage = recordPage.getPageNum();
+        }
+    }
+
+    private boolean hasFreePages() {
+	    return metadata.firstFreePage != Metadata.NO_FREE_PAGE;
+    }
+
+    private RecordPage getFirstFreePage() {
+	    return getRecordPage(metadata.firstFreePage);
+    }
+
+    private void removeFirstFreePage(RecordPage recordPage) {
+	    checkArgument(metadata.firstFreePage == recordPage.getPageNum());
+        metadata.firstFreePage = recordPage.getNextFreePage();
+    }
 
 	/**
 	 * Scan over all the records in this file.
