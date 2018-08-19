@@ -2,7 +2,6 @@ package me.nettee.pancake.core.record;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -14,11 +13,11 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
+import static me.nettee.pancake.core.record.RecordFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class RecordFileCrudTest {
@@ -64,55 +63,72 @@ public class RecordFileCrudTest {
 		recordFile.close();
 	}
 
+	private Record randomRecord() {
+	    String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
+	    return Record.fromString(str);
+    }
+
+    /**
+     * Records can be inserted into a record file. The RIDs of each record
+     * must be unique.
+     */
 	@Test
 	public void testInsert() {
-		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE - 1) + " ";
-			recordFile.insertRecord(str.getBytes());
-		}
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        Set<RID> ridSet = new HashSet<>(rids);
+		assertEquals(rids.size(), ridSet.size());
 	}
 
+    /**
+     * The inserted records can be retrieved by their RIDs.
+     */
 	@Test
 	public void testGet() {
-		List<Pair<RID, String>> records = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
-			records.add(new ImmutablePair<>(rid, str));
-		}
-		for (Pair<RID, String> record : records) {
-			RID rid = record.getLeft();
-			String str = record.getRight();
-			byte[] data = recordFile.getRecord(rid);
-			assertEquals(str, new String(data, StandardCharsets.US_ASCII));
-		}
-	}
-	
-	@Test
-	public void testUpdate() {
-		List<RID> rids = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
-			rids.add(rid);
-		}
-		Collections.shuffle(rids);
-		for (RID rid : rids) {
-			String newStr = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			recordFile.updateRecord(rid, newStr.getBytes());
-			byte[] data = recordFile.getRecord(rid);
-			assertEquals(newStr, new String(data, StandardCharsets.US_ASCII));
+		List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        for (Pair<Record, RID> pair : insertedRecords) {
+            RID rid = pair.getRight();
+			Record expectedRecord = pair.getLeft();
+			Record actualRecord = recordFile.getRecord(rid);
+			assertEquals(expectedRecord, actualRecord);
 		}
 	}
 
+    /**
+     * If we update a record and retrieve its content, we will get the updated
+     * content.
+     */
+	@Test
+	public void testUpdate() {
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        Collections.shuffle(rids);
+		for (RID rid : rids) {
+		    Record newRecord = randomRecord();
+			recordFile.updateRecord(rid, newRecord);
+			Record actualRecord = recordFile.getRecord(rid);
+			assertEquals(newRecord, actualRecord);
+		}
+	}
+
+    /**
+     * If we retrieve a deleted record (via its RID), an exception will be
+     * thrown.
+     */
 	@Test
 	public void testDelete() {
-		List<RID> rids = new ArrayList<>();
-		for (int i = 0; i < rounds; i++) {
-			String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-			RID rid = recordFile.insertRecord(str.getBytes());
-			rids.add(rid);
-		}
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+        List<RID> rids = insertedRecords.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
 		Collections.shuffle(rids);
 		for (RID rid : rids) {
 			recordFile.deleteRecord(rid);
@@ -123,4 +139,49 @@ public class RecordFileCrudTest {
 			recordFile.getRecord(rid);
 		}
 	}
+
+	@Test
+    public void testReInsert() {
+		List<Pair<Record, RID>> insertedRecords =
+				insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+
+		// Randomly delete one record.
+        RID oldRid = pickOne(insertedRecords).getRight();
+        recordFile.deleteRecord(oldRid);
+
+        // Insert a random record, and its RID should be the same as the old
+        // one.
+        Record newRecord = getRandomRecord(RECORD_SIZE);
+        RID newRid = recordFile.insertRecord(newRecord);
+
+        assertEquals(oldRid, newRid);
+    }
+
+    @Test
+    public void testReInsert2() {
+        List<Pair<Record, RID>> insertedRecords =
+                insertRandomRecords(recordFile, rounds, RECORD_SIZE);
+
+        // Randomly delete some records.
+        int m = insertedRecords.size() / 11 + 1;
+        List<RID> oldRids = pickSome(insertedRecords, m).stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        for (RID rid : oldRids) {
+            recordFile.deleteRecord(rid);
+        }
+
+        // Insert a same number of random records, and their RIDs should be the
+        // same as the old ones, ignoring ordering.
+        List<RID> newRids = new ArrayList<>(m);
+        for (int i = 0; i < m; i++) {
+            RID newRid = recordFile.insertRecord(getRandomRecord(RECORD_SIZE));
+            newRids.add(newRid);
+        }
+
+        Collections.sort(oldRids);
+        Collections.sort(newRids);
+        assertEquals(oldRids, newRids);
+    }
 }
+
