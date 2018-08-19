@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -122,14 +121,14 @@ public class RecordFile {
 		}
 	}
 
-	private RecordPage getFreeRecordPage() {
-		if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+	private RecordPage getOneFreeRecordPage() {
+		if (hasFreePages()) {
+            return getFirstFreePage();
+        } else {
 			RecordPage recordPage = createRecordPage();
-			metadata.firstFreePage = recordPage.getPageNum();
-			logger.info("Created record page[{}]", recordPage.getPageNum());
+			insertFreePage(recordPage);
+			logger.info("No free pages, created record page[{}]", recordPage.getPageNum());
 			return recordPage;
-		} else {
-			return getRecordPage(metadata.firstFreePage);
 		}
 
 	}
@@ -156,41 +155,42 @@ public class RecordFile {
 	}
 
 	/**
-	 * Insert <tt>data</tt> as a new record in file.
+	 * Insert new record in file.
 	 * 
-	 * @param data record data
+	 * @param record the record object
 	 * @return record identifier <tt>RID</tt>
 	 */
-	public RID insertRecord(byte[] data) {
-		checkArgument(data.length == metadata.recordSize);
-		RecordPage recordPage = getFreeRecordPage();
+	public RID insertRecord(Record record) {
+		checkArgument(record.getLength() == metadata.recordSize);
+		RecordPage recordPage = getOneFreeRecordPage();
 		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
-		int insertedSlotNum = recordPage.insert(data);
+		int insertedSlotNum = recordPage.insert(record.getData());
 		metadata.numRecords += 1;
-		logger.info("Inserted record[{},{}] <{}>", insertedPageNum, insertedSlotNum,
-				new String(data, StandardCharsets.US_ASCII));
+		logger.info("Inserted record[{},{}] <{}>",
+				insertedPageNum, insertedSlotNum, record.toString());
 		unpinPage(recordPage);
 		if (recordPage.isFull()) {
 			logger.info("Record page[{}] now becomes full", recordPage.getPageNum());
-			metadata.firstFreePage = recordPage.getNextFreePage();
+			removeFirstFreePage(recordPage);
 		}
 		return new RID(insertedPageNum, insertedSlotNum);
 	}
 
 	/**
-	 * Get the record data identified by <tt>rid</tt>.
+	 * Get the record identified by <tt>rid</tt>.
 	 * 
 	 * @param rid record identification
-	 * @return record data
+	 * @return record
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
-	public byte[] getRecord(RID rid) {
+	public Record getRecord(RID rid) {
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		try {
-			byte[] record = recordPage.get(rid.slotNum);
-			logger.info("Got record[{},{}] = <{}>", rid.pageNum, rid.slotNum,
-					new String(record, StandardCharsets.US_ASCII));
+			byte[] data = recordPage.get(rid.slotNum);
+			Record record = new Record(data);
+			logger.info("Got record[{},{}] = <{}>",
+                    rid.pageNum, rid.slotNum, record.toString());
 			unpinPage(recordPage);
 			return record;
 		} catch (RecordNotExistException e) {
@@ -202,19 +202,19 @@ public class RecordFile {
 
 	/**
 	 * Update the record identified by <tt>rid</tt>. The existing contents of
-	 * the record will be replaced by <tt>data</tt>.
+	 * the record will be replaced by <tt>record</tt>.
 	 * 
 	 * @param rid record identification
-	 * @param data replacement
+	 * @param record replacement
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
-	public void updateRecord(RID rid, byte[] data) {
-		checkArgument(data.length == metadata.recordSize);
+	public void updateRecord(RID rid, Record record) {
+		checkArgument(record.getLength() == metadata.recordSize);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		try {
-			recordPage.update(rid.slotNum, data);
-			logger.info("Updated record[{},{}] to <{}>", rid.pageNum, rid.slotNum,
-					new String(data, StandardCharsets.US_ASCII));
+			recordPage.update(rid.slotNum, record.getData());
+			logger.info("Updated record[{},{}] to <{}>",
+                    rid.pageNum, rid.slotNum, record.toString());
 			unpinPage(recordPage);
 		} catch (RecordNotExistException e) {
 			logger.error(e.getMessage());
@@ -231,6 +231,7 @@ public class RecordFile {
 	public void deleteRecord(RID rid) {
 		logger.debug("Deleting record[{},{}]", rid.pageNum, rid.slotNum);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
+		boolean awayFromFull = recordPage.isFull();
 		try {
 			markDirty(recordPage);
 			recordPage.delete(rid.slotNum);
@@ -239,9 +240,18 @@ public class RecordFile {
 			unpinPage(recordPage);
 			if (recordPage.isEmpty()) {
 				logger.info("Record page[{}] now becomes empty", recordPage.getPageNum());
-				recordPage.setNextFreePage(metadata.firstFreePage);
-				metadata.firstFreePage = recordPage.getPageNum();
-			}
+				insertFreePage(recordPage);
+			} else if (awayFromFull) {
+			    /*
+			    When the first record from a full page is deleted, mark this
+			    page as free and insert it into the linked list. No page will be
+			    inserted twice in the linked list, because we insert record into
+			    the first page of the linked list first, and remove it from the
+			    linked list once it becomes full.
+			     */
+			    logger.info("Record page[{}] is now half empty", recordPage.getPageNum());
+			    insertFreePage(recordPage);
+            }
 		} catch (RecordNotExistException e) {
 			logger.error(e.getMessage());
 			unpinPage(recordPage);
@@ -249,20 +259,43 @@ public class RecordFile {
 		}
 	}
 
+	private void insertFreePage(RecordPage recordPage) {
+	    // Insert the number of this page as the header node of linked list.
+        if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
+            metadata.firstFreePage = recordPage.getPageNum();
+        } else {
+            recordPage.setNextFreePage(metadata.firstFreePage);
+            metadata.firstFreePage = recordPage.getPageNum();
+        }
+    }
+
+    private boolean hasFreePages() {
+	    return metadata.firstFreePage != Metadata.NO_FREE_PAGE;
+    }
+
+    private RecordPage getFirstFreePage() {
+	    return getRecordPage(metadata.firstFreePage);
+    }
+
+    private void removeFirstFreePage(RecordPage recordPage) {
+	    checkArgument(metadata.firstFreePage == recordPage.getPageNum());
+        metadata.firstFreePage = recordPage.getNextFreePage();
+    }
+
 	/**
 	 * Scan over all the records in this file.
 	 *
 	 * @return an <tt>Scan</tt> to iterate through records
 	 */
-	public Scan<byte[]> scan() {
+	public Scan<Record> scan() {
 		return new RecordScan();
 	}
 
-	public Scan<byte[]> scan(Predicate<byte[]> predicate) {
+	public Scan<Record> scan(Predicate<Record> predicate) {
 	    return new RecordScan(predicate);
     }
 
-	private class RecordScan implements Scan<byte[]> {
+	private class RecordScan implements Scan<Record> {
 
 	    private final Predicate<byte[]> predicate;
 	    private final Iterator<Integer> pageIterator;
@@ -274,8 +307,8 @@ public class RecordFile {
 	        this(null);
         }
 
-		RecordScan(Predicate<byte[]> predicate) {
-	        this.predicate = predicate;
+		RecordScan(Predicate<Record> p) {
+	        this.predicate = data -> p == null || p.test(new Record(data));
             logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
             logger.debug("numPages = {}", metadata.numPages);
             Set<Integer> targetPages = new TreeSet<>();
@@ -286,7 +319,7 @@ public class RecordFile {
 		}
 
         @Override
-        public Optional<byte[]> next() {
+        public Optional<Record> next() {
 		    if (closed) {
                 throw new IllegalStateException("Scan is closed");
             }
@@ -295,7 +328,7 @@ public class RecordFile {
                 // One page is under scanning
                 Optional<byte[]> optionalRecord = pageScan.next();
                 if (optionalRecord.isPresent()) {
-                    return optionalRecord;
+                    return Optional.of(new Record(optionalRecord.get()));
                 } else {
                     pageScan.close();
                     pageScan = null;
@@ -314,7 +347,7 @@ public class RecordFile {
 		        pageScan = recordPage.scan(predicate);
                 Optional<byte[]> optionalRecord = pageScan.next();
                 if (optionalRecord.isPresent()) {
-                    return optionalRecord;
+                    return Optional.of(new Record(optionalRecord.get()));
                 } else {
                     // This page has no records that satisfy the predicate.
                     pageScan.close();

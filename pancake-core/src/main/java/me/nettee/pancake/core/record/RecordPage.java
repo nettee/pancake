@@ -272,7 +272,7 @@ public class RecordPage {
 
 	/**
 	 * Insert record.
-	 * @param data record
+	 * @param data record data
 	 * @return slot number of inserted record
 	 */
 	int insert(byte[] data) {
@@ -386,6 +386,7 @@ public class RecordPage {
                 }
                 byte[] record = get(currentSlotNum);
                 currentSlotNum++;
+                // TODO predicate can no longer be null
                 if (predicate == null || predicate.test(record)) {
                     return Optional.of(record);
                 }
