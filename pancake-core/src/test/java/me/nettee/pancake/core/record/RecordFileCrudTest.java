@@ -1,17 +1,16 @@
 package me.nettee.pancake.core.record;
 
-import com.google.common.annotations.GwtIncompatible;
-import com.sun.org.apache.regexp.internal.RE;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
@@ -22,8 +21,6 @@ import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class RecordFileCrudTest {
-
-    private static Logger logger = LoggerFactory.getLogger(RecordFileCrudTest.class);
 
 	private static final int RECORD_SIZE = 8;
 	private static final int CAPACITY = 500;
