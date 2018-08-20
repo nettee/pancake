@@ -17,6 +17,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRecords;
+import static me.nettee.pancake.core.record.RecordFileTestUtils.pickOne;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
@@ -64,16 +65,19 @@ public class RecordFileScanTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
-	private List<Record> insertSequenceRecords(RecordFile recordFile) {
+	private List<Record> insertSequenceRecords2(RecordFile recordFile) {
+        List<Pair<Record, RID>> insertedRecords = insertSequenceRecords(recordFile);
+        return insertedRecords.stream()
+                .map(Pair::getLeft)
+                .collect(Collectors.toList());
+    }
+
+    private List<Pair<Record, RID>> insertSequenceRecords(RecordFile recordFile) {
         IntFunction<Record> recordGenerator = i -> {
             String str = String.format("rec-%04d", i);
             return Record.fromString(str);
         };
-        List<Pair<Record, RID>> insertedRecords =
-                insertRecords(recordFile, rounds, recordGenerator);
-        return insertedRecords.stream()
-                .map(Pair::getLeft)
-                .collect(Collectors.toList());
+        return insertRecords(recordFile, rounds, recordGenerator);
     }
 
     private void debugScan(Scan<Record> scan) {
@@ -128,41 +132,53 @@ public class RecordFileScanTest {
 
 	@Test
     public void testScan_noPredicate() {
-        List<Record> records = insertSequenceRecords(recordFile);
+        List<Record> records = insertSequenceRecords2(recordFile);
+        testScanAll(records, recordFile.scan());
+    }
+
+    @Test
+    public void testScan_noPredicate_withDelete() {
+        List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
+        List<Record> records = pairs.stream()
+                .map(Pair::getLeft)
+                .collect(Collectors.toList());
+        Pair<Record, RID> recordToDelete = pickOne(pairs);
+        records.remove(recordToDelete.getLeft());
+        recordFile.deleteRecord(recordToDelete.getRight());
         testScanAll(records, recordFile.scan());
     }
 
     @Test
     public void testScan_truePredicate() {
-        List<Record> records = insertSequenceRecords(recordFile);
+        List<Record> records = insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> true;
         testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_falsePredicate() {
-	    insertSequenceRecords(recordFile);
+	    insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> false;
         testScanNone(recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_allTruePredicate() {
-	    List<Record> records = insertSequenceRecords(recordFile);
+	    List<Record> records = insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> r.toString().startsWith("rec");
         testScanAll(records, recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_allFalsePredicate() {
-	    insertSequenceRecords(recordFile);
+	    insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> r.toString().startsWith("cer");
         testScanNone(recordFile.scan(predicate));
     }
 
     @Test
     public void testScan_partialTruePredicate() {
-        List<Record> records = insertSequenceRecords(recordFile);
+        List<Record> records = insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> {
             String s = r.toString();
             int i = Integer.valueOf(s.substring(4));
@@ -174,7 +190,7 @@ public class RecordFileScanTest {
     @Ignore
     @Test
     public void testScanWithDeletedRecords() {
-	    insertSequenceRecords(recordFile);
+	    insertSequenceRecords2(recordFile);
 	    debugScan(recordFile.scan());
     }
 }
