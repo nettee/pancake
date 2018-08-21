@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 
 import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRecords;
 import static me.nettee.pancake.core.record.RecordFileTestUtils.pickOne;
+import static me.nettee.pancake.core.record.RecordFileTestUtils.pickSome;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
@@ -80,18 +81,6 @@ public class RecordFileScanTest {
         return insertRecords(recordFile, rounds, recordGenerator);
     }
 
-    private void debugScan(Scan<Record> scan) {
-	    while (true) {
-	        Optional<Record> optionalRecord = scan.next();
-	        if (!optionalRecord.isPresent()) {
-	            // End of scan.
-                break;
-            }
-            Record record = optionalRecord.get();
-	        System.out.println(record.toString());
-        }
-    }
-
     private void testScanAll(List<Record> expectedRecords, Scan<Record> scan) {
         int i = 0;
         while (true) {
@@ -137,7 +126,7 @@ public class RecordFileScanTest {
     }
 
     @Test
-    public void testScan_noPredicate_withDelete() {
+    public void testScan_noPredicate_withDeleteOne() {
         List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
         List<Record> records = pairs.stream()
                 .map(Pair::getLeft)
@@ -146,6 +135,28 @@ public class RecordFileScanTest {
         records.remove(recordToDelete.getLeft());
         recordFile.deleteRecord(recordToDelete.getRight());
         testScanAll(records, recordFile.scan());
+    }
+
+    @Test
+    public void testScan_noPredicate_withDeleteSome() {
+        List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
+        List<Record> records = pairs.stream()
+                .map(Pair::getLeft)
+                .collect(Collectors.toList());
+        int m = rounds / 11 + 1;
+        List<Pair<Record, RID>> pairsToDelete = pickSome(pairs, m);
+        List<Record> recordsToDelete = pairsToDelete.stream()
+                .map(Pair::getLeft)
+                .collect(Collectors.toList());
+        List<RID> ridsToDelete = pairsToDelete.stream()
+                .map(Pair::getRight)
+                .collect(Collectors.toList());
+        records.removeAll(recordsToDelete);
+        for (RID rid : ridsToDelete) {
+            recordFile.deleteRecord(rid);
+        }
+        testScanAll(records, recordFile.scan());
+
     }
 
     @Test
@@ -187,10 +198,4 @@ public class RecordFileScanTest {
         testScanPartial(records, predicate, recordFile.scan(predicate));
     }
 
-    @Ignore
-    @Test
-    public void testScanWithDeletedRecords() {
-	    insertSequenceRecords2(recordFile);
-	    debugScan(recordFile.scan());
-    }
 }
