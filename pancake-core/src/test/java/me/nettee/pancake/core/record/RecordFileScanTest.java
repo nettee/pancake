@@ -66,6 +66,12 @@ public class RecordFileScanTest {
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
 
+    private Predicate<Record> evenPredicate = r -> {
+        String s = r.toString();
+        int i = Integer.valueOf(s.substring(4));
+        return i % 2 == 0;
+    };
+
 	private List<Record> insertSequenceRecords2(RecordFile recordFile) {
         List<Pair<Record, RID>> insertedRecords = insertSequenceRecords(recordFile);
         return insertedRecords.stream()
@@ -190,12 +196,36 @@ public class RecordFileScanTest {
     @Test
     public void testScan_partialTruePredicate() {
         List<Record> records = insertSequenceRecords2(recordFile);
-        Predicate<Record> predicate = r -> {
-            String s = r.toString();
-            int i = Integer.valueOf(s.substring(4));
-            return i % 2 == 0;
-        };
-        testScanPartial(records, predicate, recordFile.scan(predicate));
+        testScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
+    }
+
+    /**
+     * If we delete all non-even records, and then scan even records, we will
+     * get all even records.
+     */
+    @Test
+    public void testScan_nonCandidateDeleted() {
+        List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
+        List<Record> records = pairs.stream()
+                .map(Pair::getLeft)
+                .collect(Collectors.toList());
+        pairs.stream()
+                .filter(pair -> evenPredicate.negate().test(pair.getLeft()))
+                .forEach(pair -> recordFile.deleteRecord(pair.getRight()));
+        testScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
+    }
+
+    /**
+     * If we delete all even records, and then scan even records, we will get
+     * no records.
+     */
+    @Test
+    public void testScan_candidateDeleted() {
+        List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
+        pairs.stream()
+                .filter(pair -> evenPredicate.test(pair.getLeft()))
+                .forEach(pair -> recordFile.deleteRecord(pair.getRight()));
+        testScanNone(recordFile.scan(evenPredicate));
     }
 
 }
