@@ -8,10 +8,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -20,6 +17,7 @@ import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRecords;
 import static me.nettee.pancake.core.record.RecordFileTestUtils.pickOne;
 import static me.nettee.pancake.core.record.RecordFileTestUtils.pickSome;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class RecordFileScanTest {
@@ -87,7 +85,7 @@ public class RecordFileScanTest {
         return insertRecords(recordFile, rounds, recordGenerator);
     }
 
-    private void testScanAll(List<Record> expectedRecords, Scan<Record> scan) {
+    private void checkScanAll(List<Record> expectedRecords, Scan<Record> scan) {
         int i = 0;
         while (true) {
             Optional<Record> optionalRecord = scan.next();
@@ -97,42 +95,40 @@ public class RecordFileScanTest {
             }
             Record record = optionalRecord.get();
             Record expected = expectedRecords.get(i);
+            assertTrue(i < expectedRecords.size());
             assertEquals(expected, record);
             i++;
         }
         assertEquals(expectedRecords.size(), i);
     }
 
-    private void testScanNone(Scan<Record> scan) {
-	    int c = 0;
-	    while (true) {
-            Optional<Record> optionalRecord = scan.next();
-            if (!optionalRecord.isPresent()) {
-                // End of scan.
-                break;
-            }
-            c++;
-        }
-        assertEquals(0, c);
+    private void checkScanNone(Scan<Record> scan) {
+	    checkScanAll(Collections.emptyList(), scan);
     }
 
-    private void testScanPartial(List<Record> allRecords,
-                                 Predicate<Record> predicate,
-                                 Scan<Record> scan) {
+    private void checkScanPartial(List<Record> allRecords,
+                                  Predicate<Record> predicate,
+                                  Scan<Record> scan) {
         List<Record> targetRecords = allRecords.stream()
                 .filter(predicate)
                 .collect(Collectors.toList());
-        testScanAll(targetRecords, scan);
+        checkScanAll(targetRecords, scan);
     }
 
+    /**
+     * We will get all records with {@code scan()}.
+     */
 	@Test
-    public void testScan_noPredicate() {
+    public void testScan() {
         List<Record> records = insertSequenceRecords2(recordFile);
-        testScanAll(records, recordFile.scan());
+        checkScanAll(records, recordFile.scan());
     }
 
+    /**
+     * We will get all records with {@code scan()}, except the deleted one.
+     */
     @Test
-    public void testScan_noPredicate_withDeleteOne() {
+    public void testScan_deleteOne() {
         List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
         List<Record> records = pairs.stream()
                 .map(Pair::getLeft)
@@ -140,11 +136,14 @@ public class RecordFileScanTest {
         Pair<Record, RID> recordToDelete = pickOne(pairs);
         records.remove(recordToDelete.getLeft());
         recordFile.deleteRecord(recordToDelete.getRight());
-        testScanAll(records, recordFile.scan());
+        checkScanAll(records, recordFile.scan());
     }
 
+    /**
+     * We will get all records with {@code scan()}, except deleted ones.
+     */
     @Test
-    public void testScan_noPredicate_withDeleteSome() {
+    public void testScan_deleteSome() {
         List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
         List<Record> records = pairs.stream()
                 .map(Pair::getLeft)
@@ -161,42 +160,60 @@ public class RecordFileScanTest {
         for (RID rid : ridsToDelete) {
             recordFile.deleteRecord(rid);
         }
-        testScanAll(records, recordFile.scan());
+        checkScanAll(records, recordFile.scan());
 
     }
 
+    /**
+     * We will get all records using {@code scan()} with {@code true} predicate.
+     */
     @Test
-    public void testScan_truePredicate() {
+    public void testScanPredicate_truePredicate() {
         List<Record> records = insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> true;
-        testScanAll(records, recordFile.scan(predicate));
+        checkScanAll(records, recordFile.scan(predicate));
     }
 
+    /**
+     * We will get no records using {@code scan()} with {@code false} predicate.
+     */
     @Test
-    public void testScan_falsePredicate() {
+    public void testScanPredicate_falsePredicate() {
 	    insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> false;
-        testScanNone(recordFile.scan(predicate));
+        checkScanNone(recordFile.scan(predicate));
     }
 
+    /**
+     * We will get all records using {@code scan()} with a predicate that is
+     * always true.
+     */
     @Test
-    public void testScan_allTruePredicate() {
+    public void testScanPredicate_allTruePredicate() {
 	    List<Record> records = insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> r.toString().startsWith("rec");
-        testScanAll(records, recordFile.scan(predicate));
+        checkScanAll(records, recordFile.scan(predicate));
     }
 
+    /**
+     * We will get no records using {@code scan()} with a predicate that is
+     * always false.
+     */
     @Test
-    public void testScan_allFalsePredicate() {
+    public void testScanPredicate_allFalsePredicate() {
 	    insertSequenceRecords2(recordFile);
         Predicate<Record> predicate = r -> r.toString().startsWith("cer");
-        testScanNone(recordFile.scan(predicate));
+        checkScanNone(recordFile.scan(predicate));
     }
 
+    /**
+     * When {@code scan()} the record file with a predicate, we will get records
+     * that satisfies the predicate.
+     */
     @Test
-    public void testScan_partialTruePredicate() {
+    public void testScanPredicate() {
         List<Record> records = insertSequenceRecords2(recordFile);
-        testScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
+        checkScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
     }
 
     /**
@@ -204,7 +221,7 @@ public class RecordFileScanTest {
      * get all even records.
      */
     @Test
-    public void testScan_nonCandidateDeleted() {
+    public void testScanPredicate_nonCandidateDeleted() {
         List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
         List<Record> records = pairs.stream()
                 .map(Pair::getLeft)
@@ -212,7 +229,7 @@ public class RecordFileScanTest {
         pairs.stream()
                 .filter(pair -> evenPredicate.negate().test(pair.getLeft()))
                 .forEach(pair -> recordFile.deleteRecord(pair.getRight()));
-        testScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
+        checkScanPartial(records, evenPredicate, recordFile.scan(evenPredicate));
     }
 
     /**
@@ -220,12 +237,12 @@ public class RecordFileScanTest {
      * no records.
      */
     @Test
-    public void testScan_candidateDeleted() {
+    public void testScanPredicate_candidateDeleted() {
         List<Pair<Record, RID>> pairs = insertSequenceRecords(recordFile);
         pairs.stream()
                 .filter(pair -> evenPredicate.test(pair.getLeft()))
                 .forEach(pair -> recordFile.deleteRecord(pair.getRight()));
-        testScanNone(recordFile.scan(evenPredicate));
+        checkScanNone(recordFile.scan(evenPredicate));
     }
 
 }

@@ -157,6 +157,7 @@ public class RecordFileCrudTest {
         assertEquals(oldRid, newRid);
     }
 
+    // TODO Hidden bug here. Test fails in some executions.
     @Test
     public void testReInsert2() {
         List<Pair<Record, RID>> insertedRecords =
