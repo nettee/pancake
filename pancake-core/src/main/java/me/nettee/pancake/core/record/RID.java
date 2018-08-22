@@ -16,26 +16,15 @@ public class RID implements Comparable<RID> {
 	public int pageNum;
 	public int slotNum;
 
-	public RID(int pageNum, int slotNum) {
+	RID(int pageNum, int slotNum) {
 		this.pageNum = pageNum;
 		this.slotNum = slotNum;
 	}
 
     @Override
     public int compareTo(RID that) {
-        if (this.pageNum < that.pageNum) {
-            return -1;
-        } else if (this.pageNum > that.pageNum) {
-            return 1;
-        } else {
-            if (this.slotNum < that.slotNum) {
-                return -1;
-            } else if (this.slotNum > that.slotNum) {
-                return 1;
-            } else {
-                return 0;
-            }
-        }
+	    int c = Integer.compare(this.pageNum, that.pageNum);
+	    return c != 0 ? c : Integer.compare(this.slotNum, that.slotNum);
     }
 
     @Override

@@ -48,7 +48,7 @@ public class RecordFileScanTest {
 	}
 
 	@Before
-	public void setUp() throws Exception {
+	public void setUp() {
 		File file = new File("/tmp/e.db");
 		if (file.exists()) {
 			file.delete();

@@ -360,8 +360,6 @@ public class RecordPage {
             currentSlotNum = 0;
         }
 
-        // TODO enable predicate
-        // TODO consider deleted records
         @Override
         public Optional<byte[]> next() {
             if (closed) {

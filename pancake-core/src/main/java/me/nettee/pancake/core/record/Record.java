@@ -1,8 +1,11 @@
 package me.nettee.pancake.core.record;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 public class Record {
+
+    private static final Charset CHARSET = StandardCharsets.US_ASCII;
 
     private byte[] data;
 
@@ -10,8 +13,8 @@ public class Record {
         this.data = data;
     }
 
-    public static Record fromString(String str) {
-        return new Record(str.getBytes(StandardCharsets.US_ASCII));
+    static Record fromString(String str) {
+        return new Record(str.getBytes(CHARSET));
     }
 
     public byte[] getData() {
@@ -41,6 +44,6 @@ public class Record {
 
     @Override
     public String toString() {
-        return new String(data, StandardCharsets.US_ASCII);
+        return new String(data, CHARSET);
     }
 }
