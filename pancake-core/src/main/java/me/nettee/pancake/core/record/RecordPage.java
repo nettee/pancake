@@ -337,19 +337,6 @@ public class RecordPage {
 		header.nextFreePage = pageNum;
 	}
 
-	public static short ab2s(byte[] ab) {
-		if (ab.length != 2) {
-			throw new IllegalArgumentException();
-		}
-		short s = ByteBuffer.wrap(ab).order(ByteOrder.BIG_ENDIAN).getShort();
-		return s;
-	}
-
-	public static byte[] s2ab(short s) {
-		byte[] ab = ByteBuffer.allocate(2).order(ByteOrder.BIG_ENDIAN).putShort(s).array();
-		return ab;
-	}
-
 	Page getPage() {
 		return page;
 	}
@@ -373,16 +360,20 @@ public class RecordPage {
             currentSlotNum = 0;
         }
 
-        // TODO enable predicate
-        // TODO consider deleted records
         @Override
         public Optional<byte[]> next() {
             if (closed) {
                 throw new IllegalStateException("Scan is closed");
             }
+            // TODO This will examine every bits in bit-set. Try to improve efficiency.
             while (true) {
-                if (currentSlotNum >= header.numRecords) {
+                if (currentSlotNum >= header.capacity) {
                     return Optional.empty();
+                }
+                if (!bitset.get(currentSlotNum)) {
+                    // The current record is deleted.
+                    currentSlotNum++;
+                    continue;
                 }
                 byte[] record = get(currentSlotNum);
                 currentSlotNum++;

@@ -284,6 +284,21 @@ public class RecordFile {
 
 	/**
 	 * Scan over all the records in this file.
+     *
+     * Code example:
+     *
+     * <pre>
+Scan<Record> scan = recordFile.scan();
+while (true) {
+    Optional<Record> optionalRecord = scan.next();
+    if (!optionalRecord.isPresent()) {
+        // End of scan.
+        break;
+    }
+    Record record = optionalRecord.get();
+    // Deal with the record ...
+}
+     * </pre>
 	 *
 	 * @return an <tt>Scan</tt> to iterate through records
 	 */

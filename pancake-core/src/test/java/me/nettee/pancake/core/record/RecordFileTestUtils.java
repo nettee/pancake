@@ -12,7 +12,7 @@ import java.util.*;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
-public class RecordFileTestUtils {
+class RecordFileTestUtils {
 
     private static Logger logger = LoggerFactory.getLogger(RecordFileTestUtils.class);
 

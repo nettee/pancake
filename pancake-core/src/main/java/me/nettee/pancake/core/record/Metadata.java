@@ -71,8 +71,5 @@ public class Metadata {
 			throw new RecordFileException(e);
 		}
 	}
-	
-	int ridRecordNumber(RID rid) {
-		return (rid.pageNum - dataPageOffset) * pageRecordCapacity + rid.slotNum;
-	}
+
 }
