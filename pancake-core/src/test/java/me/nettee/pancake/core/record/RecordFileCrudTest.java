@@ -1,7 +1,5 @@
 package me.nettee.pancake.core.record;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -23,31 +21,22 @@ import static org.junit.Assert.assertEquals;
 public class RecordFileCrudTest {
 
 	private static final int RECORD_SIZE = 8;
-	private static final int CAPACITY = 500;
 
 	private RecordFile recordFile;
 	private final int rounds;
 
+	@Rule
+	public ExpectedException thrown = ExpectedException.none();
+
 	@SuppressWarnings("rawtypes")
 	@Parameters(name="{0} rounds")
 	public static Collection data() {
-		Object[][] data = {
-				{1},
-				{RandomUtils.nextInt(2, CAPACITY)},
-				{CAPACITY},
-				{CAPACITY + 1},
-				{RandomUtils.nextInt(2, 10) * CAPACITY},
-				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
-		};
-		return Arrays.asList(data);
+		return randomRecordNumbers(RECORD_SIZE);
 	}
 
 	public RecordFileCrudTest(int rounds) {
 		this.rounds = rounds;
 	}
-	
-	@Rule
-	public ExpectedException thrown = ExpectedException.none();
 
 	@Before
 	public void setUp() {
@@ -63,12 +52,7 @@ public class RecordFileCrudTest {
 		recordFile.close();
 	}
 
-	private Record randomRecord() {
-	    String str = RandomStringUtils.randomAlphabetic(RECORD_SIZE);
-	    return Record.fromString(str);
-    }
-
-    /**
+	/**
      * Records can be inserted into a record file. The RIDs of each record
      * must be unique.
      */
@@ -111,7 +95,7 @@ public class RecordFileCrudTest {
                 .collect(Collectors.toList());
         Collections.shuffle(rids);
 		for (RID rid : rids) {
-		    Record newRecord = randomRecord();
+			Record newRecord = getRandomRecord(RECORD_SIZE);
 			recordFile.updateRecord(rid, newRecord);
 			Record actualRecord = recordFile.getRecord(rid);
 			assertEquals(newRecord, actualRecord);

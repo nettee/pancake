@@ -13,9 +13,7 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static me.nettee.pancake.core.record.RecordFileTestUtils.insertRecords;
-import static me.nettee.pancake.core.record.RecordFileTestUtils.pickOne;
-import static me.nettee.pancake.core.record.RecordFileTestUtils.pickSome;
+import static me.nettee.pancake.core.record.RecordFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -23,24 +21,17 @@ import static org.junit.Assert.assertTrue;
 public class RecordFileScanTest {
 	
 	private static final int RECORD_SIZE = 8;
-	private static final int CAPACITY = 500;
 
 	private RecordFile recordFile;
 	private final int rounds;
 
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
 	@SuppressWarnings("rawtypes")
 	@Parameterized.Parameters(name="{0} rounds")
 	public static Collection data() {
-		Object[][] data = {
-				{1},
-				{RandomUtils.nextInt(2, CAPACITY)},
-				{CAPACITY},
-				{CAPACITY + 1},
-                {2 * CAPACITY + 5},
-				{RandomUtils.nextInt(2, 10) * CAPACITY},
-				{RandomUtils.nextInt(CAPACITY + 2, CAPACITY * 10)},
-		};
-		return Arrays.asList(data);
+		return randomRecordNumbers(RECORD_SIZE);
 	}
 
 	public RecordFileScanTest(int rounds) {
@@ -60,9 +51,6 @@ public class RecordFileScanTest {
 	public void tearDown() {
 		recordFile.close();
 	}
-
-	@Rule
-	public ExpectedException thrown = ExpectedException.none();
 
     private Predicate<Record> evenPredicate = r -> {
         String s = r.toString();

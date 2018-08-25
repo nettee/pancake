@@ -7,8 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Optional;
@@ -172,26 +170,7 @@ public class RecordPage {
 		header.recordSize = recordSize;
 		header.numRecords = 0;
 
-		/*
-		 * Calculate bitset size:
-		 *
-		 * Let C = capacity of page, R = length of record, n = number of record.
-		 *
-		 * Rn + ceil(n/8) <= C;
-		 *
-		 * Rn + ceil(n/8) <= Rn + (n+7)/8 <= C;
-		 *
-		 * Thus n <= (8C-7)/(8R+1).
-		 *
-		 * Bitset size = ceil(n/8) bytes.
-		 *
-		 * Workaround: Java BitSet class has a bug, its capacity wouldn't grow
-		 * if all the bits is 0, and toByteArray() returns empty array. Add one
-		 * dummy bit at the end of bitset to fix this problem.
-		 */
-		int pageCapacity = Page.DATA_SIZE - HEADER_SIZE;
-		// workaround "minus one"
-		int n = (8 * pageCapacity - 7) / (8 * recordSize + 1) - 1;
+        int n = getPageRecordCapacity(recordSize);
 		header.capacity = n;
 		header.bitsetSize = (int) Math.ceil((double) n / 8);
 		logger.debug("header.capacity = {}", header.capacity);
@@ -202,6 +181,30 @@ public class RecordPage {
 		writeHeaderToPage();
 		writeBitsetToPage();
 	}
+
+	static int getPageRecordCapacity(int recordSize) {
+        /*
+         * Calculate bitset size:
+         *
+         * Let C = capacity of page (bytes), R = length of record, n = number of record.
+         *
+         * Rn + ceil(n/8) <= C;
+         *
+         * Rn + ceil(n/8) <= Rn + (n+7)/8 <= C;
+         *
+         * Thus n <= (8C-7)/(8R+1).
+         *
+         * Bitset size = ceil(n/8) bytes.
+         *
+         * Workaround: Java BitSet class has a bug, its capacity wouldn't grow
+         * if all the bits is 0, and toByteArray() returns empty array. Add one
+         * dummy bit at the end of bitset to fix this problem.
+         */
+        int C = Page.DATA_SIZE - HEADER_SIZE;
+        // workaround "minus one"
+        int n = (8 * C - 7) / (8 * recordSize + 1) - 1;
+        return n;
+    }
 
 	private void load() {
 		readHeaderAndBitsetFromPage();
