@@ -16,6 +16,21 @@ class RecordFileTestUtils {
 
     private static Logger logger = LoggerFactory.getLogger(RecordFileTestUtils.class);
 
+    // Return as JUnit parameterized test params.
+    static List<Object[]> randomRecordNumbers(int recordSize) {
+        int capacity = RecordPage.getPageRecordCapacity(recordSize);
+        Object[][] data = {
+                {1},
+                {RandomUtils.nextInt(2, capacity)},
+                {capacity},
+                {capacity + 1},
+                {2 * capacity + 5},
+                {RandomUtils.nextInt(2, 10) * capacity},
+                {RandomUtils.nextInt(capacity + 2, capacity * 10)},
+        };
+        return Arrays.asList(data);
+    }
+
     static List<Pair<Record, RID>> insertRecords(RecordFile recordFile,
                                                          int N,
                                                          IntFunction<Record> recordGenerator) {
