@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.record.AttrType;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,31 +25,32 @@ public class IndexManagerTest {
 
     @Test
     public void testCreate() {
-        Index index = Index.create(file);
+        Index index = Index.create(file, 0, AttrType.string(8));
         index.close();
     }
 
+    // TODO consider different indexNo in the same file
     @Test
     public void testCreate_createTwice() {
-        Index index = Index.create(file);
+        Index index = Index.create(file, 0, AttrType.string(8));
         index.close();
 
         thrown.expect(Exception.class);
-        Index.create(file);
+        Index.create(file, 0, AttrType.string(8));
     }
 
     @Test
     public void testOpen() {
-        Index index = Index.create(file);
+        Index index = Index.create(file, 0, AttrType.string(8));
         index.close();
 
-        Index index2 = Index.open(file);
+        Index index2 = Index.open(file, 0);
         index2.close();
     }
 
     @Test
     public void testOpen_withoutCreate() {
         thrown.expect(Exception.class);
-        Index.open(file);
+        Index.open(file, 0);
     }
 }
