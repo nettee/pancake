@@ -6,9 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class Index {
@@ -26,32 +28,46 @@ public class Index {
      * Callers should ensure that {@code indexNo} is unique and non-negative
      * for each index created on a file. Thus, {@code file.indexNo}
      * identifies a unique index.
-     * @param file the data file
+     * @param dataFile the data file, storing records
      * @param indexNo the index number
      * @return
      */
-    public static Index create(File file, int indexNo, AttrType attrType) {
-        checkNotNull(file);
+    public static Index create(File dataFile, int indexNo, AttrType attrType) {
+        checkNotNull(dataFile);
+        checkArgument(dataFile.exists(), "data file does not exist: " + dataFile.getAbsolutePath());
+        checkArgument(indexNo >= 0, "indexNo should be non-negative");
+        checkNotNull(attrType);
 
-        logger.info("Creating Index {}", file.getPath());
+        File indexFile = getIndexFile(dataFile, indexNo);
 
-        PagedFile pagedFile = PagedFile.create(file);
+        logger.info("Creating Index {} on data file {}", indexFile.getPath(), dataFile.getPath());
 
-        Index index = new Index(pagedFile);
+        // Duplicated indexNo will fail on this step.
+        PagedFile pagedFile = PagedFile.create(indexFile);
 
-        return index;
+        return new Index(pagedFile);
     }
 
-    public static Index open(File file, int indexNo) {
-        checkNotNull(file);
+    public static Index open(File dataFile, int indexNo) {
+        checkNotNull(dataFile);
+        checkArgument(dataFile.exists(), "data file does not exist: " + dataFile.getAbsolutePath());
+        checkArgument(indexNo >= 0, "indexNo should be non-negative");
 
-        logger.info("Opening Index {}", file.getPath());
+        File indexFile = getIndexFile(dataFile, indexNo);
+        if (!indexFile.exists()) {
+            throw new IndexException("Index file not exist: " + indexFile.getAbsolutePath());
+        }
 
-        PagedFile pagedFile = PagedFile.open(file);
+        logger.info("Opening Index {}", indexFile.getPath());
 
-        Index index = new Index(pagedFile);
+        PagedFile pagedFile = PagedFile.open(indexFile);
 
-        return index;
+        return new Index(pagedFile);
+    }
+
+    private static File getIndexFile(File dataFile, int indexNo) {
+        String indexFileName = String.format("%s.%d", dataFile.getName(), indexNo);
+        return new File(dataFile.getParentFile(), indexFileName);
     }
 
     public void close() {
