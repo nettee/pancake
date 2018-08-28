@@ -1,47 +1,55 @@
 package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.record.AttrType;
+import me.nettee.pancake.core.record.RecordFile;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class IndexManagerTest {
 
-    private static final AttrType ATTR_TYPE = AttrType.string(8);
+    private static final int RECORD_SIZE = 8;
+    private static final AttrType ATTR_TYPE = AttrType.string(RECORD_SIZE);
+    private static final int MAX_INDEX_NO = 10;
 
-    private File dataFile;
+    private static File dataFile = new File("/tmp/ixa.db");
+
+    @BeforeClass
+    public static void setUpBeforeClass() {
+        if (!dataFile.exists()) {
+            RecordFile recordFile = RecordFile.create(dataFile, RECORD_SIZE);
+            recordFile.close();
+        }
+    }
 
     @Before
-    public void setUp() throws IOException {
-        dataFile = new File("/tmp/ixa.db");
-
+    public void setUp() {
         File dir = dataFile.getParentFile();
-        File[] files = dir.listFiles(file -> file.getName().startsWith(dataFile.getName()));
-        for (File file : files) {
+        File[] indexFiles = dir.listFiles(file ->
+                file.getName().startsWith(dataFile.getName() + "."));
+        for (File file : indexFiles) {
             file.delete();
         }
-
-        dataFile.createNewFile();
     }
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
     private static int randomIndexNo() {
-        return RandomUtils.nextInt(0, 10);
+        return RandomUtils.nextInt(0, MAX_INDEX_NO);
     }
 
     private static List<Integer> randomIndexNos() {
         List<Integer> nos = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < MAX_INDEX_NO; i++) {
             nos.add(i);
         }
         Collections.shuffle(nos);
@@ -53,6 +61,15 @@ public class IndexManagerTest {
         int indexNo = randomIndexNo();
         Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
         index.close();
+    }
+
+    @Test
+    public void testDestroy() {
+        int indexNo = randomIndexNo();
+        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
+        index.close();
+
+        Index.destroy(dataFile, indexNo);
     }
 
     @Test
@@ -75,6 +92,30 @@ public class IndexManagerTest {
     }
 
     @Test
+    public void testDestroyTwice() {
+        int indexNo = randomIndexNo();
+        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
+        index.close();
+
+        Index.destroy(dataFile, indexNo);
+
+        thrown.expect(Exception.class);
+        Index.destroy(dataFile, indexNo);
+    }
+
+    @Test
+    public void testCreateDestroyCreate() {
+        int indexNo = randomIndexNo();
+        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
+        index.close();
+
+        Index.destroy(dataFile, indexNo);
+
+        Index.create(dataFile, indexNo, ATTR_TYPE);
+        index.close();
+    }
+
+    @Test
     public void testOpen() {
         int indexNo = randomIndexNo();
         Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
@@ -86,8 +127,21 @@ public class IndexManagerTest {
 
     @Test
     public void testOpenWithoutCreate() {
+        int indexNo = randomIndexNo();
         thrown.expect(Exception.class);
-        Index.open(dataFile, 0);
+        Index.open(dataFile, indexNo);
+    }
+
+    @Test
+    public void testOpenDestroyed() {
+        int indexNo = randomIndexNo();
+        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
+        index.close();
+
+        Index.destroy(dataFile, indexNo);
+
+        thrown.expect(Exception.class);
+        Index.open(dataFile, indexNo);
     }
 
     @Test
