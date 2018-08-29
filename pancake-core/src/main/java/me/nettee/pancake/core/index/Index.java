@@ -24,10 +24,13 @@ public class Index {
 
     private static Logger logger = LoggerFactory.getLogger(Index.class);
 
-    private PagedFile pagedFile;
+    private final PagedFile pagedFile;
+
+    private boolean open;
 
     private Index(PagedFile pagedFile) {
         this.pagedFile = pagedFile;
+        open = true;
     }
 
     /**
@@ -124,12 +127,15 @@ public class Index {
 
         pagedFile.forceAllPages();
         pagedFile.close();
+
+        open = false;
     }
 
     /**
-     * Insert new index entry.
+     * Insert a new entry into the index.
      * <p>
-     * The index entry is a pair ({@code Attr}, {@code RID})
+     * An index entry is a pair {@code (attr, rid)}, in which
+     * {@code attr} is the attribute value, and
      * <p>
      * This method throws an exception if there is already an entry for
      * ({@code attr}, {@code rid}) in the index.
@@ -137,18 +143,26 @@ public class Index {
      * @param rid the record identifier object
      */
     public void insertEntry(Attr attr, RID rid) {
+        checkState(open, "Index not open");
 
     }
 
+    /**
+     * Delete the entry for the {@code (attr, rid)} pair from the index.
+     * @param attr
+     * @param rid
+     */
     public void deleteEntry(Attr attr, RID rid) {
-
+        checkState(open, "Index not open");
     }
 
     public Scan<RID> scan() {
+        checkState(open, "Index not open");
         return new IndexScan();
     }
 
     public Scan<RID> scan(Predicate<Attr> predicate) {
+        checkState(open, "Index not open");
         return new IndexScan(predicate);
     }
 
