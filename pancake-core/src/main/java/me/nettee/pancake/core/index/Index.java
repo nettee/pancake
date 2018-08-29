@@ -8,7 +8,7 @@ import me.nettee.pancake.core.record.Scan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.io.*;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -25,11 +25,13 @@ public class Index {
     private static Logger logger = LoggerFactory.getLogger(Index.class);
 
     private final PagedFile pagedFile;
+    private final File indexFile;
 
     private boolean open;
 
-    private Index(PagedFile pagedFile) {
+    private Index(PagedFile pagedFile, File indexFile) {
         this.pagedFile = pagedFile;
+        this.indexFile = indexFile;
         open = true;
     }
 
@@ -59,7 +61,7 @@ public class Index {
 
         // Duplicated indexNo will fail on this step.
         PagedFile pagedFile = PagedFile.create(indexFile);
-        return new Index(pagedFile);
+        return new Index(pagedFile, indexFile);
     }
 
     /**
@@ -103,7 +105,7 @@ public class Index {
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
         PagedFile pagedFile = PagedFile.open(indexFile);
-        return new Index(pagedFile);
+        return new Index(pagedFile, indexFile);
     }
 
     private static File joinIndexFile(File dataFile, int indexNo) {
@@ -185,5 +187,9 @@ public class Index {
         public void close() {
 
         }
+    }
+
+    public String dump() {
+        return null;
     }
 }

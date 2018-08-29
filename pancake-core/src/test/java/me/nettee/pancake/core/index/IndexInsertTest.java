@@ -1,0 +1,47 @@
+package me.nettee.pancake.core.index;
+
+import me.nettee.pancake.core.record.AttrType;
+import me.nettee.pancake.core.record.RecordFile;
+import org.junit.*;
+import org.junit.rules.ExpectedException;
+
+import java.io.File;
+import java.io.IOException;
+
+public class IndexInsertTest {
+
+    private static final int RECORD_SIZE = 8;
+
+    private static final File DATA_FILE = new File("/tmp/ixb.db");
+    private static final int INDEX_NO = 0;
+    private static final AttrType ATTR_TYPE = AttrType.string(RECORD_SIZE);
+
+    private Index index;
+
+    @BeforeClass
+    public static void setUpBeforeClass() {
+        if (!DATA_FILE.exists()) {
+            RecordFile recordFile = RecordFile.create(DATA_FILE, RECORD_SIZE);
+            recordFile.close();
+        }
+    }
+
+    @Before
+    public void setUp() {
+        index = Index.create(DATA_FILE, INDEX_NO, ATTR_TYPE);
+    }
+
+    @After
+    public void tearDown() {
+        index.close();
+        Index.destroy(DATA_FILE, INDEX_NO);
+    }
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
+    @Test
+    public void test() {
+        System.out.println(index.dump());
+    }
+}
