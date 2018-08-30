@@ -5,8 +5,7 @@ import me.nettee.pancake.core.record.RecordFile;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 
 public class IndexInsertTest {
 
@@ -24,6 +23,12 @@ public class IndexInsertTest {
             RecordFile recordFile = RecordFile.create(DATA_FILE, RECORD_SIZE);
             recordFile.close();
         }
+        File dir = DATA_FILE.getParentFile();
+        File[] indexFiles = dir.listFiles(file ->
+                file.getName().startsWith(DATA_FILE.getName() + "."));
+        for (File indexFile : indexFiles) {
+            indexFile.delete();
+        }
     }
 
     @Before
@@ -34,7 +39,7 @@ public class IndexInsertTest {
     @After
     public void tearDown() {
         index.close();
-        Index.destroy(DATA_FILE, INDEX_NO);
+//        Index.destroy(DATA_FILE, INDEX_NO);
     }
 
     @Rule

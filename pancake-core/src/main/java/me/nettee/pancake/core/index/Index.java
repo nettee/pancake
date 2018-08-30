@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import me.nettee.pancake.core.record.Attr;
 import me.nettee.pancake.core.record.AttrType;
@@ -27,11 +28,13 @@ public class Index {
     private final PagedFile pagedFile;
     private final File indexFile;
 
+    private IndexHeader header;
     private boolean open;
 
     private Index(PagedFile pagedFile, File indexFile) {
         this.pagedFile = pagedFile;
         this.indexFile = indexFile;
+        header = new IndexHeader();
         open = true;
     }
 
@@ -58,10 +61,17 @@ public class Index {
         logger.info("Creating index {} on data file {}", indexNo, dataFile.getPath());
 
         File indexFile = joinIndexFile(dataFile, indexNo);
-
         // Duplicated indexNo will fail on this step.
         PagedFile pagedFile = PagedFile.create(indexFile);
-        return new Index(pagedFile, indexFile);
+        checkState(pagedFile.getNumOfPages() == 0,
+                "Created page file is not empty");
+        pagedFile.allocatePage(); // As header page
+
+        Index index = new Index(pagedFile, indexFile);
+        index.header.init(attrType);
+        logger.info("Index header initialized");
+
+        return index;
     }
 
     /**
@@ -105,7 +115,16 @@ public class Index {
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
         PagedFile pagedFile = PagedFile.open(indexFile);
-        return new Index(pagedFile, indexFile);
+        checkState(pagedFile.getNumOfPages() > 0,
+                "Opened page file is empty");
+
+        Index index = new Index(pagedFile, indexFile);
+        Page headerPage = pagedFile.getFirstPage();
+        index.header.readFrom(headerPage.getData());
+        pagedFile.unpinPage(headerPage);
+        logger.info("Index header loaded");
+
+        return index;
     }
 
     private static File joinIndexFile(File dataFile, int indexNo) {
@@ -127,10 +146,19 @@ public class Index {
     public void close() {
         logger.info("Closing Index");
 
+        writeHeaderToFile();
+
         pagedFile.forceAllPages();
         pagedFile.close();
 
         open = false;
+    }
+
+    private void writeHeaderToFile() {
+        Page headerPage = pagedFile.getFirstPage();
+        pagedFile.markDirty(headerPage);
+        header.writeTo(headerPage.getData());
+        pagedFile.unpinPage(headerPage);
     }
 
     /**
@@ -146,7 +174,6 @@ public class Index {
      */
     public void insertEntry(Attr attr, RID rid) {
         checkState(open, "Index not open");
-
     }
 
     /**
@@ -189,7 +216,15 @@ public class Index {
         }
     }
 
-    public String dump() {
-        return null;
+    // For debug only.
+    String dump() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(baos);
+
+        out.printf("Index file: %s\n", indexFile.getAbsolutePath());
+        out.printf("Number of pages: %d\n", pagedFile.getNumOfPages());
+
+        out.close();
+        return baos.toString();
     }
 }
