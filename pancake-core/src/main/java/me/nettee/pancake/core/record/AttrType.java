@@ -1,5 +1,8 @@
 package me.nettee.pancake.core.record;
 
+import java.io.*;
+import java.util.Arrays;
+
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
@@ -11,12 +14,33 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class AttrType {
 
-    public static int MAX_STRING_LEN = 256;
+    private static int MAX_STRING_LEN = 256;
+    private static int SERIALIZE_LENGTH = 8;
 
     enum Type {
-        INT,
-        FLOAT,
-        STRING,
+        INT(1),
+        FLOAT(2),
+        STRING(3),
+        ;
+
+        private final int value;
+
+        Type(int value) {
+            this.value = value;
+        }
+
+        public int toInt() {
+            return value;
+        }
+
+        public static Type fromInt(int value) {
+            switch (value) {
+                case 1: return INT;
+                case 2: return FLOAT;
+                case 3: return STRING;
+                default: throw new AssertionError();
+            }
+        }
     }
 
     public static AttrType INT = new AttrType(Type.INT, 4);
@@ -49,5 +73,26 @@ public class AttrType {
 
     public int getLength() {
         return length;
+    }
+
+    public void writeObject(DataOutputStream os) throws IOException {
+        os.writeInt(type.toInt());
+        os.writeInt(length);
+    }
+
+    public static AttrType readObject(DataInputStream in) throws IOException {
+        int typeValue = in.readInt();
+        int length = in.readInt();
+        return new AttrType(Type.fromInt(typeValue), length);
+    }
+
+    @Override
+    public String toString() {
+        String typeString = type.name();
+        if (isInt() || isFloat()) {
+            return typeString;
+        } else {
+            return String.format("%s(%d)", typeString, length);
+        }
     }
 }

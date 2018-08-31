@@ -224,6 +224,12 @@ public class Index {
         out.printf("Index file: %s\n", indexFile.getAbsolutePath());
         out.printf("Number of pages: %d\n", pagedFile.getNumOfPages());
 
+        out.println("-----------------------------");
+        out.println("Page[0] - Header page");
+        out.printf("Attr type: %s\n", header.attrType.toString());
+
+        out.println("=============================");
+
         out.close();
         return baos.toString();
     }

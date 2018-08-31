@@ -38,6 +38,7 @@ public class Metadata {
 			
 			// check magic string
 			byte[] magic0 = new byte[MAGIC.length()];
+			// TODO check return value
 			is.read(magic0);
 			if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
 				throw new RecordFileException("magic does not match");
