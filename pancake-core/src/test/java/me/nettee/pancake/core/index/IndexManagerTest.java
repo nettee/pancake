@@ -111,8 +111,8 @@ public class IndexManagerTest {
 
         Index.destroy(dataFile, indexNo);
 
-        Index.create(dataFile, indexNo, ATTR_TYPE);
-        index.close();
+        Index index2 = Index.create(dataFile, indexNo, ATTR_TYPE);
+        index2.close();
     }
 
     @Test

@@ -1,13 +1,13 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.model.Magic;
 import me.nettee.pancake.core.record.AttrType;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 
 public class IndexHeader {
 
-    private final String MAGIC = "INX-FILE";
+    private final Magic MAGIC = new Magic("INX-FILE");
 
     AttrType attrType;
 
@@ -20,15 +20,7 @@ public class IndexHeader {
         DataInputStream in = new DataInputStream(bais);
 
         try {
-            // Check magic string
-            byte[] magic0 = new byte[MAGIC.length()];
-            int read = in.read(magic0);
-            if (read != MAGIC.length()) {
-                throw new IndexException("Magic not match");
-            }
-            if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
-                throw new IndexException("Magic not match");
-            }
+            MAGIC.check(in);
             attrType = AttrType.readObject(in);
         } catch (IOException e) {
             throw new IndexException(e);
@@ -39,7 +31,7 @@ public class IndexHeader {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream os = new DataOutputStream(baos);
         try {
-            os.write(MAGIC.getBytes(StandardCharsets.US_ASCII));
+            os.write(MAGIC.getBytes());
             attrType.writeObject(os);
             byte[] data = baos.toByteArray();
             System.arraycopy(data, 0, dest, 0, data.length);

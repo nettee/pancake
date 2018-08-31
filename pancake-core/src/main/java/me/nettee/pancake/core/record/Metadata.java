@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.model.Magic;
 import me.nettee.pancake.core.page.Page;
 
 import java.io.ByteArrayInputStream;
@@ -13,7 +14,7 @@ public class Metadata {
 	
 	public static final int NO_FREE_PAGE = -1; 
 	
-	private static final String MAGIC = "REC-FILE";
+	private static final Magic MAGIC = new Magic("REC-FILE");
 
 	int recordSize;
 	int dataPageOffset;
@@ -35,15 +36,8 @@ public class Metadata {
 		try {
 			ByteArrayInputStream bais = new ByteArrayInputStream(src);
 			DataInputStream is = new DataInputStream(bais);
-			
-			// check magic string
-			byte[] magic0 = new byte[MAGIC.length()];
-			// TODO check return value
-			is.read(magic0);
-			if (!MAGIC.equals(new String(magic0, StandardCharsets.US_ASCII))) {
-				throw new RecordFileException("magic does not match");
-			}
-			
+
+			MAGIC.check(is);
 			recordSize = is.readInt();
 			dataPageOffset = is.readInt();
 			numRecords = is.readInt();
@@ -59,7 +53,7 @@ public class Metadata {
 		try {
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			DataOutputStream os = new DataOutputStream(baos);
-			os.write(MAGIC.getBytes(StandardCharsets.US_ASCII));
+			os.write(MAGIC.getBytes());
 			os.writeInt(recordSize);
 			os.writeInt(dataPageOffset);
 			os.writeInt(numRecords);
