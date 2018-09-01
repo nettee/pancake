@@ -9,12 +9,15 @@ import java.io.*;
 
 public class IndexHeader {
 
+    public static int PAGE_NUM_NOT_EXIST = -1;
+
     private final Magic MAGIC = new Magic("INX-FILE");
 
     AttrType attrType;
     int keyLength;
     int pointerLength;
     int branchingFactor;
+    int numPages;
     int rootPageNum;
 
     void init(AttrType attrType) {
@@ -22,7 +25,8 @@ public class IndexHeader {
         this.keyLength = attrType.getLength();
         this.pointerLength = Pointer.SIZE;
         this.branchingFactor = (Page.DATA_SIZE + keyLength) / (keyLength + pointerLength);
-        this.rootPageNum = -1; // No root
+        this.numPages = 1; // TODO Is this field necessary?
+        this.rootPageNum = PAGE_NUM_NOT_EXIST;
     }
 
     void readFrom(byte[] src) {

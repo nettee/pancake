@@ -172,6 +172,40 @@ public class Index {
      */
     public void insertEntry(Attr attr, RID rid) {
         checkState(open, "Index not open");
+        // TODO check attr type
+        bpInsert(attr, rid);
+    }
+
+    private void bpInsert(Attr attr, RID rid) {
+        header.rootPageNum = bpInsert(header.rootPageNum, attr, rid);
+    }
+
+    private int bpInsert(int pageNum, Attr attr, RID rid) {
+        if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
+            IndexNode node = createIndexNode();
+            node.bpInsert(attr, rid);
+            unpinPage(node); // TODO Where to unpin this?
+            return node.getPageNum();
+        }
+
+        // TODO
+        return pageNum;
+    }
+
+    private IndexNode createIndexNode() {
+        boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
+        if (isRoot) {
+            System.out.println("creating root node...");
+        } else {
+            System.out.println("creating non-root node...");
+        }
+
+        Page page = pagedFile.allocatePage();
+        pagedFile.markDirty(page);
+        IndexNode indexNode = IndexNode.create(page, isRoot, header.attrType);
+        header.numPages++;
+        // TODO Add index node to buffer
+        return indexNode;
     }
 
     /**
@@ -214,10 +248,16 @@ public class Index {
         }
     }
 
+    private void unpinPage(IndexNode indexNode) {
+        pagedFile.unpinPage(indexNode.getPage());
+    }
+
     // For debug only.
     String dump() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(baos);
+
+        out.println("=============================");
 
         out.printf("Index file: %s\n", indexFile.getAbsolutePath());
         out.printf("Number of pages: %d\n", pagedFile.getNumOfPages());

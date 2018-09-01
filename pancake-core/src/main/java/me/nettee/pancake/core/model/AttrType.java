@@ -15,6 +15,8 @@ public class AttrType {
 
     private static int MAX_STRING_LEN = 256;
 
+    // TODO flyweight pattern
+
     enum Type {
         INT(1),
         FLOAT(2),
