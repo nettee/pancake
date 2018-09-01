@@ -13,9 +13,7 @@ import java.io.*;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.*;
 
 /**
  * {@code Index} object is used to handle index files, i.e. insert and delete
@@ -227,6 +225,9 @@ public class Index {
         out.println("-----------------------------");
         out.println("Page[0] - Header page");
         out.printf("Attr type: %s\n", header.attrType.toString());
+        out.printf("Key length: %d, pointer length: %d\n", header.keyLength, header.pointerLength);
+        out.printf("Branching factor (order of B+ tree): %d\n", header.branchingFactor);
+        out.printf("Root pageNum: %d\n", header.rootPageNum);
 
         out.println("=============================");
 

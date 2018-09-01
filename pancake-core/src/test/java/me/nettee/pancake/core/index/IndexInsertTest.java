@@ -1,6 +1,9 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.StringAttr;
 import me.nettee.pancake.core.record.RecordFile;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
@@ -47,6 +50,8 @@ public class IndexInsertTest {
 
     @Test
     public void test() {
+        Attr attr = new StringAttr("a000-001");
+        index.insertEntry(attr, new RID(4, 5));
         System.out.println(index.dump());
     }
 }
