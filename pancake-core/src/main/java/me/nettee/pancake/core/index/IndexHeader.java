@@ -24,7 +24,8 @@ public class IndexHeader {
         this.attrType = attrType;
         this.keyLength = attrType.getLength();
         this.pointerLength = Pointer.SIZE;
-        this.branchingFactor = (Page.DATA_SIZE + keyLength) / (keyLength + pointerLength);
+        this.branchingFactor = (Page.DATA_SIZE - IndexNode.HEADER_SIZE
+                + keyLength) / (keyLength + pointerLength);
         this.numPages = 1; // TODO Is this field necessary?
         this.rootPageNum = PAGE_NUM_NOT_EXIST;
     }

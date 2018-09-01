@@ -20,4 +20,18 @@ public class IntAttr extends Attr {
     public int getLength() {
         return LENGTH;
     }
+
+    @Override
+    public int compareTo(Attr attr) {
+        if (!(attr instanceof IntAttr)) {
+            throw new ClassCastException();
+        }
+        IntAttr that = (IntAttr) attr;
+        return Integer.compare(this.value, that.value);
+    }
+
+    @Override
+    public String toString() {
+        return String.valueOf(value);
+    }
 }

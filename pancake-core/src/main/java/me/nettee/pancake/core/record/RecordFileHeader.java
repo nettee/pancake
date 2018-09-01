@@ -19,7 +19,7 @@ public class RecordFileHeader {
 	int dataPageOffset;
 	int numRecords;
 	int numPages;
-	int pageRecordCapacity;
+	int pageRecordCapacity; // TODO Useless field
 	int firstFreePage;
 
 	void init(int recordSize) {

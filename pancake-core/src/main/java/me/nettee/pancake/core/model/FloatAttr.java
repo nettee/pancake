@@ -21,4 +21,18 @@ public class FloatAttr extends Attr {
     public int getLength() {
         return LENGTH;
     }
+
+    @Override
+    public int compareTo(Attr attr) {
+        if (!(attr instanceof FloatAttr)) {
+            throw new ClassCastException();
+        }
+        FloatAttr that = (FloatAttr) attr;
+        return Float.compare(this.value, that.value);
+    }
+
+    @Override
+    public String toString() {
+        return String.valueOf(value);
+    }
 }

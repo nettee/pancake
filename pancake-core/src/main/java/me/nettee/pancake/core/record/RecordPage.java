@@ -21,7 +21,7 @@ public class RecordPage {
 	private static Logger logger = LoggerFactory.getLogger(RecordPage.class);
 
 	// Note: change the value when the structure of Header changes.
-	public static final int HEADER_SIZE = 20;
+	static final int HEADER_SIZE = 20;
 
 	private static class Header {
 
@@ -183,6 +183,7 @@ public class RecordPage {
 		writeBitsetToPage();
 	}
 
+	// TODO Repetitive computing in each record page
 	static int getPageRecordCapacity(int recordSize) {
         /*
          * Calculate bitset size:

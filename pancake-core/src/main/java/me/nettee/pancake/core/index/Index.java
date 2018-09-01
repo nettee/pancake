@@ -10,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -23,16 +26,40 @@ public class Index {
 
     private static Logger logger = LoggerFactory.getLogger(Index.class);
 
+    private static class IndexNodeBuffer {
+
+        private Map<Integer, IndexNode> buf = new HashMap<>();
+
+        void add(IndexNode indexNode) {
+            int pageNum = indexNode.getPageNum();
+            buf.put(pageNum, indexNode);
+        }
+
+        boolean contains(int pageNum) {
+            return buf.containsKey(pageNum);
+        }
+
+        IndexNode get(int pageNum) {
+            return buf.get(pageNum);
+        }
+
+        Collection<IndexNode> nodes() {
+            return buf.values();
+        }
+    }
+
     private final PagedFile pagedFile;
     private final File indexFile;
 
     private IndexHeader header;
+    private IndexNodeBuffer buffer;
     private boolean open;
 
     private Index(PagedFile pagedFile, File indexFile) {
         this.pagedFile = pagedFile;
         this.indexFile = indexFile;
         header = new IndexHeader();
+        buffer = new IndexNodeBuffer();
         open = true;
     }
 
@@ -202,10 +229,20 @@ public class Index {
 
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        IndexNode indexNode = IndexNode.create(page, isRoot, header.attrType);
+        IndexNode indexNode = IndexNode.create(page, isRoot, header);
         header.numPages++;
-        // TODO Add index node to buffer
+        buffer.add(indexNode);
         return indexNode;
+    }
+
+    private IndexNode getIndexNode(int pageNum) {
+        if (buffer.contains(pageNum)) {
+            IndexNode indexNode = buffer.get(pageNum);
+            // TODO touch(indexNode);
+            return indexNode;
+        }
+        // TODO
+        throw new AssertionError();
     }
 
     /**
@@ -268,6 +305,13 @@ public class Index {
         out.printf("Key length: %d, pointer length: %d\n", header.keyLength, header.pointerLength);
         out.printf("Branching factor (order of B+ tree): %d\n", header.branchingFactor);
         out.printf("Root pageNum: %d\n", header.rootPageNum);
+
+        for (int i = 1; i < pagedFile.getNumOfPages(); i++) {
+            out.println("-----------------------------");
+            out.printf("Page[%d] - Data page\n", i);
+            IndexNode indexNode = getIndexNode(i);
+            out.println(indexNode);
+        }
 
         out.println("=============================");
 
