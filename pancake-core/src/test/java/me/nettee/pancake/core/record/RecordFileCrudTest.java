@@ -1,5 +1,7 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.Record;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;

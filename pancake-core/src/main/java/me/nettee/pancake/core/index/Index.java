@@ -2,10 +2,10 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
-import me.nettee.pancake.core.record.Attr;
-import me.nettee.pancake.core.record.AttrType;
-import me.nettee.pancake.core.record.RID;
-import me.nettee.pancake.core.record.Scan;
+import me.nettee.pancake.core.model.Attr;
+import me.nettee.pancake.core.model.AttrType;
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.Scan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

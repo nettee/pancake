@@ -1,7 +1,6 @@
-package me.nettee.pancake.core.record;
+package me.nettee.pancake.core.model;
 
 import java.io.*;
-import java.util.Arrays;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -15,7 +14,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class AttrType {
 
     private static int MAX_STRING_LEN = 256;
-    private static int SERIALIZE_LENGTH = 8;
 
     enum Type {
         INT(1),

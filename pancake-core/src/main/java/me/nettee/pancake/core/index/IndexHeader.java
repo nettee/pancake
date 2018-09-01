@@ -1,7 +1,7 @@
 package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.model.Magic;
-import me.nettee.pancake.core.record.AttrType;
+import me.nettee.pancake.core.model.AttrType;
 
 import java.io.*;
 
@@ -17,11 +17,10 @@ public class IndexHeader {
 
     void readFrom(byte[] src) {
         ByteArrayInputStream bais = new ByteArrayInputStream(src);
-        DataInputStream in = new DataInputStream(bais);
-
+        DataInputStream is = new DataInputStream(bais);
         try {
-            MAGIC.check(in);
-            attrType = AttrType.readObject(in);
+            MAGIC.check(is);
+            attrType = AttrType.readObject(is);
         } catch (IOException e) {
             throw new IndexException(e);
         }

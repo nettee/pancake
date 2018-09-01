@@ -1,5 +1,7 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.Record;
 import me.nettee.pancake.core.page.Pages;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
@@ -32,8 +34,8 @@ class RecordFileTestUtils {
     }
 
     static List<Pair<Record, RID>> insertRecords(RecordFile recordFile,
-                                                         int N,
-                                                         IntFunction<Record> recordGenerator) {
+                                                 int N,
+                                                 IntFunction<Record> recordGenerator) {
         List<Pair<Record, RID>> insertedRecords = new ArrayList<>();
         for (int i = 0; i < N; i++) {
             Record record = recordGenerator.apply(i);

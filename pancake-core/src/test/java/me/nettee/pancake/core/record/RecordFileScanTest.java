@@ -1,6 +1,8 @@
 package me.nettee.pancake.core.record;
 
-import org.apache.commons.lang3.RandomUtils;
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.Record;
+import me.nettee.pancake.core.model.Scan;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.*;
 import org.junit.rules.ExpectedException;

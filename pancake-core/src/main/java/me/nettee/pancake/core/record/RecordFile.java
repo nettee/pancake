@@ -1,5 +1,8 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.Record;
+import me.nettee.pancake.core.model.Scan;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
@@ -14,10 +17,10 @@ import static com.google.common.base.Preconditions.*;
 /**
  * The first page of record file serves as header page (which stores metadata),
  * and the rest pages serves as data page (which stores records). Each data page
- * also contains some header information. For metadata, see {@link Metadata}.
+ * also contains some header information. For metadata, see {@link RecordFileHeader}.
  * For data page, see {@link RecordPage}.
  * 
- * @see Metadata
+ * @see RecordFileHeader
  * @see RecordPage
  * 
  * @author nettee
@@ -51,12 +54,12 @@ public class RecordFile {
 	}
 
 	private PagedFile pagedFile;
-	private Metadata metadata;
+	private RecordFileHeader header;
 	private RecordPageBuffer buffer;
 
 	private RecordFile(PagedFile pagedFile) {
 		this.pagedFile = pagedFile;
-		metadata = new Metadata();
+		header = new RecordFileHeader();
 		buffer = new RecordPageBuffer();
 	}
 
@@ -73,7 +76,7 @@ public class RecordFile {
 		pagedFile.allocatePage(); // As header page
 
 		RecordFile recordFile = new RecordFile(pagedFile);
-		recordFile.metadata.init(recordSize);
+		recordFile.header.init(recordSize);
 		logger.info("Metadata initialized");
 
 		return recordFile;
@@ -90,7 +93,7 @@ public class RecordFile {
 
 		RecordFile recordFile = new RecordFile(pagedFile);
 		Page headerPage = pagedFile.getFirstPage();
-		recordFile.metadata.readFrom(headerPage.getData());
+		recordFile.header.readFrom(headerPage.getData());
 		logger.info("Metadata loaded");
 		pagedFile.unpinPage(headerPage);
 
@@ -110,7 +113,7 @@ public class RecordFile {
 	private void writeMetadataToPage() {
 		Page headerPage = pagedFile.getFirstPage();
 		pagedFile.markDirty(headerPage);
-		metadata.writeTo(headerPage.getData());
+		header.writeTo(headerPage.getData());
 		pagedFile.unpinPage(headerPage);
 	}
 
@@ -136,8 +139,8 @@ public class RecordFile {
 	private RecordPage createRecordPage() {
 		Page page = pagedFile.allocatePage();
 		pagedFile.markDirty(page);
-		RecordPage recordPage = RecordPage.create(page, metadata.recordSize);
-		metadata.numPages++;
+		RecordPage recordPage = RecordPage.create(page, header.recordSize);
+		header.numPages++;
 		buffer.add(recordPage);
 		return recordPage;
 	}
@@ -161,12 +164,12 @@ public class RecordFile {
 	 * @return record identifier <tt>RID</tt>
 	 */
 	public RID insertRecord(Record record) {
-		checkArgument(record.getLength() == metadata.recordSize);
+		checkArgument(record.getLength() == header.recordSize);
 		RecordPage recordPage = getOneFreeRecordPage();
 		markDirty(recordPage);
 		int insertedPageNum = recordPage.getPageNum();
 		int insertedSlotNum = recordPage.insert(record.getData());
-		metadata.numRecords += 1;
+		header.numRecords += 1;
 		logger.info("Inserted record[{},{}] <{}>",
 				insertedPageNum, insertedSlotNum, record.toString());
 		unpinPage(recordPage);
@@ -209,7 +212,7 @@ public class RecordFile {
 	 * @throws RecordNotExistException if <tt>rid</tt> does not exist
 	 */
 	public void updateRecord(RID rid, Record record) {
-		checkArgument(record.getLength() == metadata.recordSize);
+		checkArgument(record.getLength() == header.recordSize);
 		RecordPage recordPage = getRecordPage(rid.pageNum);
 		try {
 			recordPage.update(rid.slotNum, record.getData());
@@ -235,7 +238,7 @@ public class RecordFile {
 		try {
 			markDirty(recordPage);
 			recordPage.delete(rid.slotNum);
-			metadata.numRecords -= 1;
+			header.numRecords -= 1;
 			logger.info("Deleted record[{},{}]", rid.pageNum, rid.slotNum);
 			unpinPage(recordPage);
 			if (recordPage.isEmpty()) {
@@ -261,25 +264,25 @@ public class RecordFile {
 
 	private void insertFreePage(RecordPage recordPage) {
 	    // Insert the number of this page as the header node of linked list.
-        if (metadata.firstFreePage == Metadata.NO_FREE_PAGE) {
-            metadata.firstFreePage = recordPage.getPageNum();
+        if (header.firstFreePage == RecordFileHeader.NO_FREE_PAGE) {
+            header.firstFreePage = recordPage.getPageNum();
         } else {
-            recordPage.setNextFreePage(metadata.firstFreePage);
-            metadata.firstFreePage = recordPage.getPageNum();
+            recordPage.setNextFreePage(header.firstFreePage);
+            header.firstFreePage = recordPage.getPageNum();
         }
     }
 
     private boolean hasFreePages() {
-	    return metadata.firstFreePage != Metadata.NO_FREE_PAGE;
+	    return header.firstFreePage != RecordFileHeader.NO_FREE_PAGE;
     }
 
     private RecordPage getFirstFreePage() {
-	    return getRecordPage(metadata.firstFreePage);
+	    return getRecordPage(header.firstFreePage);
     }
 
     private void removeFirstFreePage(RecordPage recordPage) {
-	    checkArgument(metadata.firstFreePage == recordPage.getPageNum());
-        metadata.firstFreePage = recordPage.getNextFreePage();
+	    checkArgument(header.firstFreePage == recordPage.getPageNum());
+        header.firstFreePage = recordPage.getNextFreePage();
     }
 
 	/**
@@ -324,10 +327,10 @@ while (true) {
 
 		RecordScan(Predicate<Record> p) {
 	        this.predicate = data -> p == null || p.test(new Record(data));
-            logger.debug("dataPageOffset = {}", metadata.dataPageOffset);
-            logger.debug("numPages = {}", metadata.numPages);
+            logger.debug("dataPageOffset = {}", header.dataPageOffset);
+            logger.debug("numPages = {}", header.numPages);
             Set<Integer> targetPages = new TreeSet<>();
-            for (int i = metadata.dataPageOffset; i < metadata.numPages; i++) {
+            for (int i = header.dataPageOffset; i < header.numPages; i++) {
                 targetPages.add(i);
             }
             pageIterator = targetPages.iterator();

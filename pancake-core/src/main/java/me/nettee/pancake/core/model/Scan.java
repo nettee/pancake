@@ -1,4 +1,4 @@
-package me.nettee.pancake.core.record;
+package me.nettee.pancake.core.model;
 
 import java.util.Optional;
 

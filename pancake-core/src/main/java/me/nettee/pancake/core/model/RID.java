@@ -1,4 +1,4 @@
-package me.nettee.pancake.core.record;
+package me.nettee.pancake.core.model;
 
 /**
  * The <tt>RID</tt> class defines unique identifiers for records within a given
@@ -16,7 +16,7 @@ public class RID implements Comparable<RID> {
 	public int pageNum;
 	public int slotNum;
 
-	RID(int pageNum, int slotNum) {
+	public RID(int pageNum, int slotNum) {
 		this.pageNum = pageNum;
 		this.slotNum = slotNum;
 	}

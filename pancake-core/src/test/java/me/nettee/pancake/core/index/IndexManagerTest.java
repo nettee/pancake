@@ -1,6 +1,6 @@
 package me.nettee.pancake.core.index;
 
-import me.nettee.pancake.core.record.AttrType;
+import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.record.RecordFile;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Before;

@@ -8,9 +8,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
-public class Metadata {
+public class RecordFileHeader {
 	
 	public static final int NO_FREE_PAGE = -1; 
 	
@@ -29,14 +28,13 @@ public class Metadata {
 		this.numRecords = 0;
 		this.numPages = 1;
 		this.pageRecordCapacity = (Page.DATA_SIZE - RecordPage.HEADER_SIZE) / recordSize;
-		this.firstFreePage = Metadata.NO_FREE_PAGE;
+		this.firstFreePage = RecordFileHeader.NO_FREE_PAGE;
 	}
 
 	void readFrom(byte[] src) {
+        ByteArrayInputStream bais = new ByteArrayInputStream(src);
+        DataInputStream is = new DataInputStream(bais);
 		try {
-			ByteArrayInputStream bais = new ByteArrayInputStream(src);
-			DataInputStream is = new DataInputStream(bais);
-
 			MAGIC.check(is);
 			recordSize = is.readInt();
 			dataPageOffset = is.readInt();
@@ -50,9 +48,9 @@ public class Metadata {
 	}
 	
 	void writeTo(byte[] dest) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream os = new DataOutputStream(baos);
 		try {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			DataOutputStream os = new DataOutputStream(baos);
 			os.write(MAGIC.getBytes());
 			os.writeInt(recordSize);
 			os.writeInt(dataPageOffset);
