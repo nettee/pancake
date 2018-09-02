@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import com.google.common.base.Preconditions;
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.page.Page;
@@ -8,6 +9,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.google.common.base.Preconditions.checkState;
 
 public class IndexNode {
 
@@ -55,12 +58,8 @@ public class IndexNode {
     }
 
     void bpInsert(Attr attr, RID rid) {
-        if (pageHeader.numChildren >= indexHeader.branchingFactor) {
-            // This node is full
-            // TODO
-            return;
-        }
-        System.out.printf("Inserting attr <%s>\n", attr);
+        checkState(pageHeader.numChildren < indexHeader.branchingFactor);
+
         // Find insertion point i (0 <= i <= numChildren).
         int i;
         for (i = 0; i < pageHeader.numChildren; i++) {
@@ -82,13 +81,23 @@ public class IndexNode {
         return page.getNum();
     }
 
-    public boolean isRoot() {
+    boolean isRoot() {
         return root;
     }
 
-    public boolean isLeaf() {
+    boolean isLeaf() {
         return leaf;
     }
+
+    boolean isEmpty() {
+        return pageHeader.numChildren == 0;
+    }
+
+    boolean isFull() {
+        return pageHeader.numChildren >= indexHeader.branchingFactor;
+    }
+
+
 
     // For debug only.
     String dump() {
@@ -102,9 +111,14 @@ public class IndexNode {
         out.printf("Number of children: %d\n", pageHeader.numChildren);
 
         if (isLeaf()) {
-            for (int i = 0; i < pageHeader.numChildren; i++) {
-                out.printf("[%d]: %s, %s\n", i, attrs.get(i), pointers.get(i));
+            for (int i = 0; i < 3; i++) {
+                out.printf("[%d]: %s, %s  ", i, attrs.get(i), pointers.get(i));
             }
+            out.println("...");
+            for (int i = pageHeader.numChildren - 3; i < pageHeader.numChildren; i++) {
+                out.printf("[%d]: %s, %s  ", i, attrs.get(i), pointers.get(i));
+            }
+            out.println();
         }
 
         out.close();

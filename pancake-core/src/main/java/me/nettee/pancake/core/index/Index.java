@@ -215,6 +215,13 @@ public class Index {
             return node.getPageNum();
         }
 
+        IndexNode node = getIndexNode(pageNum);
+        if (!node.isFull()) {
+            node.bpInsert(attr, rid);
+            unpinPage(node);
+            return node.getPageNum();
+        }
+
         // TODO
         return pageNum;
     }
