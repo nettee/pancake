@@ -1,4 +1,4 @@
-package me.nettee.pancake.core.record;
+package me.nettee.pancake.core.model;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -13,7 +13,7 @@ public class Record {
         this.data = data;
     }
 
-    static Record fromString(String str) {
+    public static Record fromString(String str) {
         return new Record(str.getBytes(CHARSET));
     }
 

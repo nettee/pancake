@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.record;
 
+import me.nettee.pancake.core.model.Scan;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import me.nettee.pancake.core.page.Pages;
@@ -20,7 +21,7 @@ public class RecordPage {
 	private static Logger logger = LoggerFactory.getLogger(RecordPage.class);
 
 	// Note: change the value when the structure of Header changes.
-	public static final int HEADER_SIZE = 20;
+	static final int HEADER_SIZE = 20;
 
 	private static class Header {
 
@@ -53,11 +54,9 @@ public class RecordPage {
 				os.writeInt(numRecords);
 				os.writeInt(capacity);
 				os.writeInt(bitsetSize);
-				byte[] byteArray = baos.toByteArray();
-				if (byteArray.length != HEADER_SIZE) {
-					throw new IllegalStateException();
-				}
-				return byteArray;
+				byte[] data = baos.toByteArray();
+				checkState(data.length == HEADER_SIZE);
+				return data;
 			} catch (IOException e) {
 				throw new RecordFileException(e);
 			}
@@ -166,7 +165,7 @@ public class RecordPage {
 	}
 
 	private void init(int recordSize) {
-		header.nextFreePage = Metadata.NO_FREE_PAGE;
+		header.nextFreePage = RecordFileHeader.NO_FREE_PAGE;
 		header.recordSize = recordSize;
 		header.numRecords = 0;
 
@@ -182,6 +181,7 @@ public class RecordPage {
 		writeBitsetToPage();
 	}
 
+	// TODO Repetitive computing in each record page
 	static int getPageRecordCapacity(int recordSize) {
         /*
          * Calculate bitset size:
