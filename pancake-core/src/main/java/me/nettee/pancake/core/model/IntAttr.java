@@ -12,6 +12,10 @@ public class IntAttr extends Attr {
         this.value = value;
     }
 
+    public static IntAttr fromBytes(byte[] data) {
+        throw new UnsupportedOperationException();
+    }
+
     public byte[] getData() {
         return ByteBuffer.allocate(LENGTH).putInt(value).array();
     }

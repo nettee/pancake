@@ -12,6 +12,10 @@ public class FloatAttr extends Attr {
         this.value = value;
     }
 
+    public static FloatAttr fromBytes(byte[] data) {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public byte[] getData() {
         return ByteBuffer.allocate(LENGTH).putFloat(value).array();

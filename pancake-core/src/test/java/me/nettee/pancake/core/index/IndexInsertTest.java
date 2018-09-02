@@ -55,6 +55,8 @@ public class IndexInsertTest {
             RID rid = new RID(4, i);
             index.insertEntry(attr, rid);
         }
+        index.close();
+        index = Index.open(DATA_FILE, INDEX_NO);
         System.out.println(index.dump());
     }
 }

@@ -118,6 +118,7 @@ public class RecordFile {
 	}
 
 	private void writeDataPageHeadersAndBitsetsToPage() {
+		// TODO mark dirty
 		for (RecordPage recordPage : buffer.pages()) {
 			recordPage.writeHeaderToPage();
 			recordPage.writeBitsetToPage();

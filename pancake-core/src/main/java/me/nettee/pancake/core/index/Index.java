@@ -189,7 +189,10 @@ public class Index {
 
     private void writeDataPagesToFile() {
         for (IndexNode indexNode : buffer.nodes()) {
+            touch(indexNode);
+            markDirty(indexNode);
             indexNode.writeToPage();
+            unpinPage(indexNode);
         }
     }
 
@@ -252,11 +255,13 @@ public class Index {
     private IndexNode getIndexNode(int pageNum) {
         if (buffer.contains(pageNum)) {
             IndexNode indexNode = buffer.get(pageNum);
-            // TODO touch(indexNode);
+            touch(indexNode);
             return indexNode;
         }
-        // TODO
-        throw new AssertionError();
+        Page page = pagedFile.getPage(pageNum);
+        IndexNode indexNode = IndexNode.open(page, header);
+        buffer.add(indexNode);
+        return indexNode;
     }
 
     /**
@@ -299,8 +304,16 @@ public class Index {
         }
     }
 
+    private void touch(IndexNode indexNode) {
+        pagedFile.getPage(indexNode.getPageNum());
+    }
+
+    private void markDirty(IndexNode indexNode) {
+        pagedFile.markDirty(indexNode.getPageNum());
+    }
+
     private void unpinPage(IndexNode indexNode) {
-        pagedFile.unpinPage(indexNode.getPage());
+        pagedFile.unpinPage(indexNode.getPageNum());
     }
 
     // For debug only.

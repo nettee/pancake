@@ -10,6 +10,11 @@ public class StringAttr extends Attr {
         this.value = value;
     }
 
+    public static StringAttr fromBytes(byte[] data) {
+        String value = new String(data, StandardCharsets.US_ASCII);
+        return new StringAttr(value);
+    }
+
     @Override
     public byte[] getData() {
         return value.getBytes(StandardCharsets.US_ASCII);
