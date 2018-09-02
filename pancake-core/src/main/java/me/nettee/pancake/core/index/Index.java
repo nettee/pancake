@@ -172,6 +172,7 @@ public class Index {
         logger.info("Closing Index");
 
         writeHeaderToFile();
+        writeDataPagesToFile();
 
         pagedFile.forceAllPages();
         pagedFile.close();
@@ -184,6 +185,12 @@ public class Index {
         pagedFile.markDirty(headerPage);
         header.writeTo(headerPage.getData());
         pagedFile.unpinPage(headerPage);
+    }
+
+    private void writeDataPagesToFile() {
+        for (IndexNode indexNode : buffer.nodes()) {
+            indexNode.writeToPage();
+        }
     }
 
     /**

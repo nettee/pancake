@@ -54,11 +54,9 @@ public class RecordPage {
 				os.writeInt(numRecords);
 				os.writeInt(capacity);
 				os.writeInt(bitsetSize);
-				byte[] byteArray = baos.toByteArray();
-				if (byteArray.length != HEADER_SIZE) {
-					throw new IllegalStateException();
-				}
-				return byteArray;
+				byte[] data = baos.toByteArray();
+				checkState(data.length == HEADER_SIZE);
+				return data;
 			} catch (IOException e) {
 				throw new RecordFileException(e);
 			}

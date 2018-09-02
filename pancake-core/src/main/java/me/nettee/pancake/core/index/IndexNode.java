@@ -6,6 +6,8 @@ import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.page.Page;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +21,19 @@ public class IndexNode {
     private static class Header {
 
         int numChildren;
+
+        byte[] toByteArray() {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream os = new DataOutputStream(baos);
+            try {
+                os.writeInt(numChildren);
+                byte[] data = baos.toByteArray();
+                checkState(data.length == HEADER_SIZE);
+                return data;
+            } catch (IOException e) {
+                throw new IndexException(e);
+            }
+        }
 
     }
 
@@ -97,7 +112,23 @@ public class IndexNode {
         return pageHeader.numChildren >= indexHeader.branchingFactor;
     }
 
+    void writeToPage() {
+        byte[] headerBytes = pageHeader.toByteArray();
+        System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 
+        for (int i = 0; i < pointers.size(); i++) {
+            int pos = HEADER_SIZE + i * (indexHeader.keyLength
+                    + indexHeader.pointerLength);
+            byte[] pointerBytes = pointers.get(i).getData();
+            System.arraycopy(pointerBytes, 0, page.getData(), pos, indexHeader.pointerLength);
+        }
+        for (int i = 0; i < attrs.size(); i++) {
+            int pos = HEADER_SIZE + i * (indexHeader.keyLength
+                    + indexHeader.pointerLength) + indexHeader.pointerLength;
+            byte[] attrBytes = attrs.get(i).getData();
+            System.arraycopy(attrBytes, 0, page.getData(), pos, indexHeader.keyLength);
+        }
+    }
 
     // For debug only.
     String dump() {

@@ -2,6 +2,8 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.model.RID;
 
+import java.nio.ByteBuffer;
+
 public class Pointer {
 
     public static final int SIZE = 8;
@@ -21,6 +23,17 @@ public class Pointer {
         pointer.type = Type.RID;
         pointer.rid = rid;
         return pointer;
+    }
+
+    public byte[] getData() {
+        if (type.equals(Type.RID)) {
+            return ByteBuffer.allocate(SIZE)
+                    .putInt(rid.pageNum)
+                    .putInt(rid.slotNum)
+                    .array();
+        } else {
+            throw new AssertionError();
+        }
     }
 
     @Override
