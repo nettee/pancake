@@ -209,7 +209,7 @@ public class Index {
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
-            IndexNode node = createIndexNode();
+            IndexNode node = createIndexNode(true);
             node.bpInsert(attr, rid);
             unpinPage(node); // TODO Where to unpin this?
             return node.getPageNum();
@@ -219,7 +219,7 @@ public class Index {
         return pageNum;
     }
 
-    private IndexNode createIndexNode() {
+    private IndexNode createIndexNode(boolean isLeaf) {
         boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
         if (isRoot) {
             System.out.println("creating root node...");
@@ -229,7 +229,7 @@ public class Index {
 
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        IndexNode indexNode = IndexNode.create(page, isRoot, header);
+        IndexNode indexNode = IndexNode.create(page, header, isRoot, isLeaf);
         header.numPages++;
         buffer.add(indexNode);
         return indexNode;
@@ -308,9 +308,8 @@ public class Index {
 
         for (int i = 1; i < pagedFile.getNumOfPages(); i++) {
             out.println("-----------------------------");
-            out.printf("Page[%d] - Data page\n", i);
             IndexNode indexNode = getIndexNode(i);
-            out.println(indexNode);
+            out.print(indexNode.dump());
         }
 
         out.println("=============================");
