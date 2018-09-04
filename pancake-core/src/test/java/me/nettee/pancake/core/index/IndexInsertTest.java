@@ -50,7 +50,8 @@ public class IndexInsertTest {
 
     @Test
     public void test() {
-        for (int i = 1; i <= 50; i++) {
+        int numEntries = 254;
+        for (int i = 1; i <= numEntries; i++) {
             Attr attr = new StringAttr(String.format("a000-%03d", i));
             RID rid = new RID(4, i);
             index.insertEntry(attr, rid);

@@ -219,24 +219,29 @@ public class Index {
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
-            IndexNode node = createIndexNode(true);
-            node.bpInsert(attr, rid);
+            LeafIndexNode node = createLeafIndexNode();
+            node.insert(attr, rid);
             unpinPage(node); // TODO Where to unpin this?
             return node.getPageNum();
         }
 
         IndexNode node = getIndexNode(pageNum);
-        if (!node.isFull()) {
-            node.bpInsert(attr, rid);
-            unpinPage(node);
-            return node.getPageNum();
+        if (node.isFull()) {
+            // Split the bucket.
+            throw new AssertionError();
+        } else {
+            if (node.isLeaf()) {
+                LeafIndexNode leafNode = (LeafIndexNode) node;
+                leafNode.insert(attr, rid);
+                unpinPage(leafNode);
+                return node.getPageNum();
+            } else {
+                throw new AssertionError();
+            }
         }
-
-        // TODO
-        return pageNum;
     }
 
-    private IndexNode createIndexNode(boolean isLeaf) {
+    private LeafIndexNode createLeafIndexNode() {
         boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
         if (isRoot) {
             System.out.println("creating root node...");
@@ -246,7 +251,7 @@ public class Index {
 
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        IndexNode indexNode = IndexNode.create(page, header, isRoot, isLeaf);
+        LeafIndexNode indexNode = IndexNode.createLeaf(page, header, isRoot);
         header.numPages++;
         buffer.add(indexNode);
         return indexNode;
@@ -316,7 +321,6 @@ public class Index {
         pagedFile.unpinPage(indexNode.getPageNum());
     }
 
-    // For debug only.
     String dump() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(baos);

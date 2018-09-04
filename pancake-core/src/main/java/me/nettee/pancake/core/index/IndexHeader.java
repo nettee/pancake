@@ -4,7 +4,6 @@ import me.nettee.pancake.core.model.Magic;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.page.Page;
 
-import java.awt.*;
 import java.io.*;
 
 public class IndexHeader {
@@ -24,7 +23,7 @@ public class IndexHeader {
         this.attrType = attrType;
         this.keyLength = attrType.getLength();
         this.pointerLength = Pointer.SIZE;
-        this.branchingFactor = (Page.DATA_SIZE - IndexNode.HEADER_SIZE
+        this.branchingFactor = (Page.DATA_SIZE - LeafIndexNode.HEADER_SIZE
                 + keyLength) / (keyLength + pointerLength);
         this.numPages = 1; // TODO Is this field necessary?
         this.rootPageNum = PAGE_NUM_NOT_EXIST;
