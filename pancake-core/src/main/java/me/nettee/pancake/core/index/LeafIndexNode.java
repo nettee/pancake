@@ -9,24 +9,27 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 public class LeafIndexNode extends IndexNode {
 
     private List<Attr> attrs;
-    private List<Pointer> pointers;
-    // TODO right pointer for leaf nodes
+    private List<RID> rids;
+    private Pointer rightPointer;
 
     private LeafIndexNode(Page page, IndexHeader indexHeader) {
         super(page, indexHeader);
         attrs = new ArrayList<>(indexHeader.branchingFactor - 1);
-        pointers = new ArrayList<>(indexHeader.branchingFactor);
+        rids = new ArrayList<>(indexHeader.branchingFactor - 1);
+        rightPointer = null;
     }
 
     private LeafIndexNode(Page page, IndexHeader indexHeader, Header pageHeader) {
         super(page, indexHeader,pageHeader);
         attrs = new ArrayList<>(indexHeader.branchingFactor - 1);
-        pointers = new ArrayList<>(indexHeader.branchingFactor);
+        rids = new ArrayList<>(indexHeader.branchingFactor - 1);
+        rightPointer = null;
     }
 
     public static LeafIndexNode create(Page page,
@@ -38,6 +41,7 @@ public class LeafIndexNode extends IndexNode {
     }
 
     public static LeafIndexNode open(Page page, IndexHeader indexHeader, Header pageHeader) {
+        checkArgument(pageHeader.isLeaf);
         LeafIndexNode indexNode = new LeafIndexNode(page, indexHeader, pageHeader);
         indexNode.load();
         return indexNode;
@@ -59,7 +63,7 @@ public class LeafIndexNode extends IndexNode {
         }
 
         attrs.add(i, attr);
-        pointers.add(i, Pointer.fromRid(rid));
+        rids.add(i, rid);
         pageHeader.N++;
     }
 
@@ -75,17 +79,18 @@ public class LeafIndexNode extends IndexNode {
 
     private void readFromPage() {
         for (int i = 0; i < pageHeader.N; i++) {
-            byte[] pointerBytes = Arrays.copyOfRange(page.getData(), pointerPos(i),
-                    pointerPos(i) + indexHeader.pointerLength);
-            Pointer pointer = Pointer.fromBytes(pointerBytes);
-            pointers.add(pointer);
-        }
-        for (int i = 0; i < pageHeader.N; i++) {
             byte[] attrBytes = Arrays.copyOfRange(page.getData(), attrPos(i),
                     attrPos(i) + indexHeader.keyLength);
             Attr attr = Attr.fromBytes(indexHeader.attrType, attrBytes);
             attrs.add(attr);
         }
+        for (int i = 0; i < pageHeader.N; i++) {
+            byte[] ridBytes = Arrays.copyOfRange(page.getData(), pointerPos(i),
+                    pointerPos(i) + indexHeader.pointerLength);
+            RID rid = RID.fromBytes(ridBytes);
+            rids.add(rid);
+        }
+        // TODO read right pointer
     }
 
     @Override
@@ -93,28 +98,19 @@ public class LeafIndexNode extends IndexNode {
         byte[] headerBytes = pageHeader.toByteArray();
         System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 
-        for (int i = 0; i < pointers.size(); i++) {
-            byte[] pointerBytes = pointers.get(i).getData();
-            System.arraycopy(pointerBytes, 0,
-                    page.getData(), pointerPos(i),
-                    indexHeader.pointerLength);
-        }
         for (int i = 0; i < attrs.size(); i++) {
             byte[] attrBytes = attrs.get(i).getData();
             System.arraycopy(attrBytes, 0,
                     page.getData(), attrPos(i),
                     indexHeader.keyLength);
         }
-    }
-
-    private int pointerPos(int i) {
-        return HEADER_SIZE + i * (indexHeader.keyLength
-                + indexHeader.pointerLength);
-    }
-
-    private int attrPos(int i) {
-        return HEADER_SIZE + i * (indexHeader.keyLength
-                + indexHeader.pointerLength) + indexHeader.pointerLength;
+        for (int i = 0; i < rids.size(); i++) {
+            byte[] ridBytes = rids.get(i).toBytes();
+            System.arraycopy(ridBytes, 0,
+                    page.getData(), pointerPos(i),
+                    indexHeader.pointerLength);
+        }
+        // TODO write right pointer
     }
 
     @Override
@@ -131,15 +127,15 @@ public class LeafIndexNode extends IndexNode {
         if (isLeaf()) {
             if (pageHeader.N < 5) {
                 for (int i = 0; i < pageHeader.N; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), pointers.get(i));
+                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
                 }
             } else {
                 for (int i = 0; i < 3; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), pointers.get(i));
+                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
                 }
                 out.println("...");
                 for (int i = pageHeader.N - 3; i < pageHeader.N; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), pointers.get(i));
+                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
                 }
                 out.println();
             }

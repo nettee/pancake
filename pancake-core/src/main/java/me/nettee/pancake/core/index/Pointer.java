@@ -1,59 +1,39 @@
 package me.nettee.pancake.core.index;
 
-import com.google.common.base.Preconditions;
-import me.nettee.pancake.core.model.RID;
-
 import java.nio.ByteBuffer;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 
 public class Pointer {
 
-    public static final int SIZE = 8;
+    static final int SIZE = 8;
+    private static final int POINTER_TAG = -1;
 
-    private enum Type {
-        RID,
-    }
+    private final int pageNum;
 
-    private Type type;
-    private RID rid;
-
-    private Pointer() {
-    }
-
-    public static Pointer fromRid(RID rid) {
-        Pointer pointer = new Pointer();
-        pointer.type = Type.RID;
-        pointer.rid = rid;
-        return pointer;
+    private Pointer(int pageNum) {
+        this.pageNum = pageNum;
     }
 
     public static Pointer fromBytes(byte[] data) {
         checkArgument(data.length == SIZE);
-        // Only support rid type now.
         ByteBuffer byteBuffer = ByteBuffer.wrap(data);
+        int pointerTag = byteBuffer.getInt();
+        checkState(pointerTag == POINTER_TAG);
         int pageNum = byteBuffer.getInt();
-        int slotNum = byteBuffer.getInt();
-        return Pointer.fromRid(new RID(pageNum, slotNum));
+        return new Pointer(pageNum);
     }
 
-    public byte[] getData() {
-        if (type.equals(Type.RID)) {
-            return ByteBuffer.allocate(SIZE)
-                    .putInt(rid.pageNum)
-                    .putInt(rid.slotNum)
-                    .array();
-        } else {
-            throw new AssertionError();
-        }
+    public byte[] toBytes() {
+        return ByteBuffer.allocate(SIZE)
+                .putInt(POINTER_TAG)
+                .putInt(pageNum)
+                .array();
     }
 
     @Override
     public String toString() {
-        if (type.equals(Type.RID)) {
-            return rid.toString();
-        } else {
-            return super.toString();
-        }
+        return String.format("Pointer<%d>", pageNum);
     }
 }

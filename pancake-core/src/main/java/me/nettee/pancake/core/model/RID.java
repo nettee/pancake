@@ -1,5 +1,9 @@
 package me.nettee.pancake.core.model;
 
+import com.google.common.base.Preconditions;
+
+import java.nio.ByteBuffer;
+
 /**
  * The <tt>RID</tt> class defines unique identifiers for records within a given
  * file.
@@ -13,6 +17,8 @@ package me.nettee.pancake.core.model;
  */
 public class RID implements Comparable<RID> {
 
+    private static final int SIZE = 8;
+
 	public int pageNum;
 	public int slotNum;
 
@@ -20,6 +26,18 @@ public class RID implements Comparable<RID> {
 		this.pageNum = pageNum;
 		this.slotNum = slotNum;
 	}
+
+	public static RID fromBytes(byte[] data) {
+	    Preconditions.checkArgument(data.length == SIZE);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(data);
+        int pageNum = byteBuffer.getInt();
+        int slotNum = byteBuffer.getInt();
+        return new RID(pageNum, slotNum);
+    }
+
+    public byte[] toBytes() {
+	    return ByteBuffer.allocate(SIZE).putInt(pageNum).putInt(slotNum).array();
+    }
 
     @Override
     public int compareTo(RID that) {

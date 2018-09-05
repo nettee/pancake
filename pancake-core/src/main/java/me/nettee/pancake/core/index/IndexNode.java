@@ -126,6 +126,17 @@ public abstract class IndexNode {
 
     abstract void writeToPage();
 
+    protected int pointerPos(int i) {
+        return HEADER_SIZE +
+                i * (indexHeader.pointerLength + indexHeader.keyLength);
+    }
+
+    protected int attrPos(int i) {
+        return HEADER_SIZE +
+                i * (indexHeader.pointerLength + indexHeader.keyLength)
+                + indexHeader.pointerLength;
+    }
+
     // For debug only.
     abstract String dump();
 }

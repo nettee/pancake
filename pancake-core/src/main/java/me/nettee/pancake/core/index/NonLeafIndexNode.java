@@ -2,6 +2,8 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.page.Page;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class NonLeafIndexNode extends IndexNode {
 
     public NonLeafIndexNode(Page page, IndexHeader indexHeader) {
@@ -9,6 +11,7 @@ public class NonLeafIndexNode extends IndexNode {
     }
 
     public static NonLeafIndexNode open(Page page, IndexHeader indexHeader, Header pageHeader) {
+        checkArgument(!pageHeader.isLeaf);
         throw new UnsupportedOperationException();
     }
 
