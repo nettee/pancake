@@ -236,9 +236,10 @@ public class Index {
 
 
         if (leafNode.isFull()) {
-            // Split the bucket.
-            NonLeafIndexNode newNode = leafNode.insertAndSplit(attr, rid);
-            return newNode.getPageNum();
+            LeafIndexNode otherNode = createLeafIndexNode();
+            NonLeafIndexNode parentNode = createNonLeafNode();
+            leafNode.insertAndSplit(attr, rid, otherNode, parentNode);
+            return parentNode.getPageNum();
         } else {
             leafNode.insert(attr, rid);
             unpinPage(leafNode);
@@ -248,18 +249,21 @@ public class Index {
 
     private LeafIndexNode createLeafIndexNode() {
         boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
-        if (isRoot) {
-            System.out.println("creating root node...");
-        } else {
-            System.out.println("creating non-root node...");
-        }
-
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        LeafIndexNode indexNode = IndexNode.createLeaf(page, header, isRoot);
+        LeafIndexNode node = IndexNode.createLeaf(page, header, isRoot);
         header.numPages++;
-        buffer.add(indexNode);
-        return indexNode;
+        buffer.add(node);
+        return node;
+    }
+
+    private NonLeafIndexNode createNonLeafNode() {
+        Page page = pagedFile.allocatePage();
+        pagedFile.markDirty(page);
+        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, false);
+        header.numPages++;
+        buffer.add(node);
+        return node;
     }
 
     private IndexNode getIndexNode(int pageNum) {

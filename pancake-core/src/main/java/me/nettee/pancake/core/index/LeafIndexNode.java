@@ -16,7 +16,7 @@ public class LeafIndexNode extends IndexNode {
 
     private List<Attr> attrs;
     private List<RID> rids;
-    private Pointer rightPointer;
+    private NodePointer rightPointer;
 
     private LeafIndexNode(Page page, IndexHeader indexHeader) {
         super(page, indexHeader);
@@ -35,16 +35,16 @@ public class LeafIndexNode extends IndexNode {
     public static LeafIndexNode create(Page page,
                                        IndexHeader indexHeader,
                                        boolean isRoot) {
-        LeafIndexNode indexNode = new LeafIndexNode(page, indexHeader);
-        indexNode.init(isRoot, true);
-        return indexNode;
+        LeafIndexNode node = new LeafIndexNode(page, indexHeader);
+        node.init(isRoot, true);
+        return node;
     }
 
     public static LeafIndexNode open(Page page, IndexHeader indexHeader, Header pageHeader) {
         checkArgument(pageHeader.isLeaf);
-        LeafIndexNode indexNode = new LeafIndexNode(page, indexHeader, pageHeader);
-        indexNode.load();
-        return indexNode;
+        LeafIndexNode node = new LeafIndexNode(page, indexHeader, pageHeader);
+        node.load();
+        return node;
     }
 
     private void load() {
@@ -64,16 +64,44 @@ public class LeafIndexNode extends IndexNode {
         rids.add(i, rid);
     }
 
+    // Add the first n elements in src to dest1, and others to dest2.
+    private <E> void split0(List<E> src, List<E> other, int n) {
+        int N = src.size();
+        for (int i = n; i < N; i++) {
+            other.add(src.get(i));
+        }
+        for (int i = N - 1; i >= n; i--) {
+            src.remove(i);
+        }
+    }
+
     void insert(Attr attr, RID rid) {
         checkState(!isFull());
         insert0(attr, rid);
         pageHeader.N++;
     }
 
-    NonLeafIndexNode insertAndSplit(Attr attr, RID rid) {
+    void insertAndSplit(Attr attr, RID rid,
+                                    LeafIndexNode otherNode,
+                                    NonLeafIndexNode parentNode) {
         checkState(isFull());
         insert0(attr, rid);
-        return null;
+
+        checkState(attrs.size() == rids.size());
+        int N = attrs.size();
+        int n = N / 2;
+
+        split0(attrs, otherNode.attrs, n);
+        split0(rids, otherNode.rids, n);
+
+        pageHeader.N = n;
+        otherNode.pageHeader.N = N - n;
+
+        parentNode.addTwoChildren(otherNode.attrs.get(0),
+                this.getPageNum(),
+                otherNode.getPageNum());
+
+        // TODO Set right pointer
     }
 
     @Override
@@ -123,15 +151,8 @@ public class LeafIndexNode extends IndexNode {
     }
 
     @Override
-    String dump() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PrintWriter out = new PrintWriter(baos);
-
-        out.printf("Page[%d] - %s, %s\n", getPageNum(),
-                isRoot() ? "root" : "non-root",
-                isLeaf() ? "leaf" : "non-leaf"
-        );
-        out.printf("Number of children: %d\n", pageHeader.N);
+    protected void dump0(PrintWriter out) {
+        out.printf("Number of attrs: %d\n", pageHeader.N);
 
         if (isLeaf()) {
             if (pageHeader.N < 5) {
@@ -149,9 +170,6 @@ public class LeafIndexNode extends IndexNode {
                 out.println();
             }
         }
-
-        out.close();
-        return baos.toString();
     }
 
 }

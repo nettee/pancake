@@ -81,7 +81,7 @@ public abstract class IndexNode {
     public static NonLeafIndexNode createNonLeaf(Page page,
                                           IndexHeader indexHeader,
                                           boolean isRoot) {
-        return null;
+        return NonLeafIndexNode.create(page, indexHeader, isRoot);
     }
 
     public static IndexNode open(Page page,
@@ -138,5 +138,20 @@ public abstract class IndexNode {
     }
 
     // For debug only.
-    abstract String dump();
+    final String dump() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(baos);
+
+        out.printf("Page[%d] - %s, %s\n", getPageNum(),
+                isRoot() ? "root" : "non-root",
+                isLeaf() ? "leaf" : "non-leaf"
+        );
+
+        dump0(out);
+
+        out.close();
+        return baos.toString();
+    }
+
+    abstract protected void dump0(PrintWriter out);
 }

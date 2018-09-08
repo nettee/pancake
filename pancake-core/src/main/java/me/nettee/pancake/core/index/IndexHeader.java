@@ -22,7 +22,7 @@ public class IndexHeader {
     void init(AttrType attrType) {
         this.attrType = attrType;
         this.keyLength = attrType.getLength();
-        this.pointerLength = Pointer.SIZE;
+        this.pointerLength = NodePointer.SIZE;
         this.branchingFactor = (Page.DATA_SIZE - LeafIndexNode.HEADER_SIZE
                 + keyLength) / (keyLength + pointerLength);
         this.numPages = 1; // TODO Is this field necessary?
