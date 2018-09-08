@@ -2,14 +2,11 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.page.Page;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.IntFunction;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -58,24 +55,15 @@ public class NonLeafIndexNode extends IndexNode {
         pageHeader.N = 2;
     }
 
-    Pair<Integer, Integer> findChild(Attr key) {
-        final IntFunction<Pair<Integer, Integer>> f = i -> {
-            int pageNum = pointers.get(i).getPageNum();
-            return new ImmutablePair<>(i, pageNum);
-        };
+    int findChild(Attr key) {
         checkState(!isEmpty());
         for (int i = 0; i < keys.size(); i++) {
             if (key.compareTo(keys.get(i)) < 0) {
-                return f.apply(i);
+                return pointers.get(i).getPageNum();
             }
         }
         checkState(pointers.size() == keys.size() + 1);
-        return f.apply(keys.size());
-    }
-
-    void alterChild(int i, int pageNum) {
-        NodePointer pointer = new NodePointer(pageNum);
-        pointers.set(i, pointer);
+        return pointers.get(keys.size()).getPageNum();
     }
 
     @Override

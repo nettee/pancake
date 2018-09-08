@@ -67,13 +67,13 @@ public class IndexInsertTest {
         // Phase 2: the first split
         insertEntry(2001);
 
-//        // Phase 3: search and insert
-//        for (int i = 0; i < 126; i++) {
-//            insertEntry(3001 + i);
-//        }
-//
-//        // Phase 4: more splits
-//        insertEntry(4001);
+        // Phase 3: search and insert
+        for (int i = 0; i < 126; i++) {
+            insertEntry(3001 + i);
+        }
+
+        // Phase 4: more splits
+        insertEntry(4001);
 
         index.close();
         index = Index.open(DATA_FILE, INDEX_NO);

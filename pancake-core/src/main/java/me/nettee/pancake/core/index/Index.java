@@ -218,8 +218,6 @@ public class Index {
     }
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
-//        System.out.printf("bpInsert([%d], <%s>, %s)\n",
-//                pageNum, attr.toString(), rid.toString());
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
             LeafIndexNode node = createLeafIndexNode();
             node.insert(attr, rid);
@@ -228,45 +226,56 @@ public class Index {
         }
 
         IndexNode node = getIndexNode(pageNum);
-
-        if (!node.isLeaf()) {
-//            NonLeafIndexNode nonLeafNode = (NonLeafIndexNode) node;
-//            Pair<Integer, Integer> pair = nonLeafNode.findChild(attr);
-//            int ci = pair.getLeft();
-//            int xn = pair.getRight();
-////            System.out.printf("Find [%d]'s child [%d]\n", node.getPageNum(), xn);
-//            int pn = bpInsert(xn, attr, rid);
-//            nonLeafNode.alterChild(ci, pn);
-//            return node.getPageNum();
-            throw new AssertionError();
+        if (node.isLeaf()) {
+            return bpInsertLeaf((LeafIndexNode) node, attr, rid);
+        } else {
+            return bpInsertNonLeaf((NonLeafIndexNode) node, attr, rid);
         }
+    }
 
-        LeafIndexNode leafNode = (LeafIndexNode) node;
-
+    private int bpInsertLeaf(LeafIndexNode node, Attr attr, RID rid) {
         // Insert first, and split at overflow.
-        leafNode.insert(attr, rid);
+        node.insert(attr, rid);
 
-        if (leafNode.isRoot() && leafNode.isOverflow()) {
+        if (node.isRoot() && node.isOverflow()) {
             // Split the root node
             LeafIndexNode sibling = createLeafIndexNode();
-            leafNode.split(sibling);
+            node.split(sibling);
             // Link to leaf nodes to one parent
             NonLeafIndexNode parent = createNonLeafIndexNode();
             parent.addTwoChildren(sibling.getFirstAttr(),
-                    leafNode.getPageNum(),
+                    node.getPageNum(),
                     sibling.getPageNum());
 
             System.out.printf("insert and split: %d - %d - %d\n",
                     node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
-            unpinPage(leafNode);
+            unpinPage(node);
             unpinPage(sibling);
             unpinPage(parent);
             return parent.getPageNum();
         }
 
-        checkState(!leafNode.isOverflow());
-        unpinPage(leafNode);
-        return leafNode.getPageNum();
+        unpinPage(node);
+        return node.getPageNum();
+    }
+
+    private int bpInsertNonLeaf(NonLeafIndexNode node, Attr attr, RID rid) {
+        int childPageNum = node.findChild(attr);
+        bpInsert(childPageNum, attr, rid);
+        IndexNode child = getIndexNode(childPageNum);
+
+        if (child.isOverflow()) {
+            // TODO
+            throw new AssertionError();
+        }
+
+        if (node.isRoot() && node.isOverflow()) {
+            // TODO
+            throw new AssertionError();
+        }
+
+        unpinPage(node);
+        return node.getPageNum();
     }
 
     private LeafIndexNode createLeafIndexNode() {
