@@ -6,6 +6,7 @@ import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.model.Scan;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -218,6 +219,8 @@ public class Index {
     }
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
+        System.out.printf("bpInsert([%d], <%s>, %s)\n",
+                pageNum, attr.toString(), rid.toString());
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
             LeafIndexNode node = createLeafIndexNode();
             node.insert(attr, rid);
@@ -227,13 +230,18 @@ public class Index {
 
         IndexNode node = getIndexNode(pageNum);
 
-        // TODO Find the leaf node.
-
         if (!node.isLeaf()) {
-            throw new AssertionError();
+            NonLeafIndexNode nonLeafNode = (NonLeafIndexNode) node;
+            Pair<Integer, Integer> pair = nonLeafNode.findChild(attr);
+            int ci = pair.getLeft();
+            int xn = pair.getRight();
+            System.out.printf("Find [%d]'s child [%d]\n", node.getPageNum(), xn);
+            int pn = bpInsert(xn, attr, rid);
+            nonLeafNode.alterChild(ci, pn);
+            return node.getPageNum();
         }
-        LeafIndexNode leafNode = (LeafIndexNode) node;
 
+        LeafIndexNode leafNode = (LeafIndexNode) node;
 
         if (leafNode.isFull()) {
             // TODO What if this leaf node has parent?

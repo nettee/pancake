@@ -48,14 +48,30 @@ public class IndexInsertTest {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
+    private void insertEntry(int i) {
+        Attr attr = new StringAttr(String.format("a04-%04d", i));
+        RID rid = new RID(4, i);
+        index.insertEntry(attr, rid);
+    }
+
     @Test
     public void test() {
-        int numEntries = 255;
-        for (int i = 1; i <= numEntries; i++) {
-            Attr attr = new StringAttr(String.format("a000-%03d", i));
-            RID rid = new RID(4, i);
-            index.insertEntry(attr, rid);
+        int branchingFactor = 255;
+        int nodeCapacity = branchingFactor - 1;
+
+        // Phase 1: insert into one node
+        for (int i = 0; i < nodeCapacity; i++) {
+            insertEntry(1001 + i);
         }
+
+        // Phase 2: the first split
+        insertEntry(2001);
+
+        // Phase 3: search and insert
+        for (int i = 0; i < 126; i++) {
+            insertEntry(3001 + i);
+        }
+
         index.close();
         index = Index.open(DATA_FILE, INDEX_NO);
         System.out.println(index.dump());
