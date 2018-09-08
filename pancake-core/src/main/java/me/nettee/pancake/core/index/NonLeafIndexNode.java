@@ -5,6 +5,7 @@ import me.nettee.pancake.core.page.Page;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -65,15 +66,34 @@ public class NonLeafIndexNode extends IndexNode {
     }
 
     private void readFromPage() {
-        // TODO
+        for (int i = 0; i < pageHeader.N - 1; i++) {
+            byte[] keyBytes = Arrays.copyOfRange(page.getData(), attrPos(i),
+                    attrPos(i) + indexHeader.keyLength);
+            Attr key = Attr.fromBytes(indexHeader.attrType, keyBytes);
+            keys.add(key);
+        }
+        for (int i = 0; i < pageHeader.N; i++) {
+            byte[] pointerBytes = Arrays.copyOfRange(page.getData(), pointerPos(i),
+                    pointerPos(i) + indexHeader.pointerLength);
+            NodePointer pointer = NodePointer.fromBytes(pointerBytes);
+            pointers.add(pointer);
+        }
     }
 
     @Override
-    void writeToPage() {
-        byte[] headerBytes = pageHeader.toByteArray();
-        System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
-
-        // TODO write keys and pointers
+    protected void writeToPage0() {
+        for (int i = 0; i < keys.size(); i++) {
+            byte[] keyBytes = keys.get(i).toBytes();
+            System.arraycopy(keyBytes, 0,
+                    page.getData(), attrPos(i),
+                    indexHeader.keyLength);
+        }
+        for (int i = 0; i < pointers.size(); i++) {
+            byte[] pointerBytes = pointers.get(i).toBytes();
+            System.arraycopy(pointerBytes, 0,
+                    page.getData(), pointerPos(i),
+                    indexHeader.pointerLength);
+        }
     }
 
     @Override

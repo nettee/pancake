@@ -17,7 +17,7 @@ public class FloatAttr extends Attr {
     }
 
     @Override
-    public byte[] getData() {
+    public byte[] toBytes() {
         return ByteBuffer.allocate(LENGTH).putFloat(value).array();
     }
 

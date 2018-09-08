@@ -236,8 +236,9 @@ public class Index {
 
 
         if (leafNode.isFull()) {
+            // TODO What if this leaf node has parent?
             LeafIndexNode otherNode = createLeafIndexNode();
-            NonLeafIndexNode parentNode = createNonLeafNode();
+            NonLeafIndexNode parentNode = createNonLeafIndexNode();
             leafNode.insertAndSplit(attr, rid, otherNode, parentNode);
             return parentNode.getPageNum();
         } else {
@@ -257,10 +258,10 @@ public class Index {
         return node;
     }
 
-    private NonLeafIndexNode createNonLeafNode() {
+    private NonLeafIndexNode createNonLeafIndexNode() {
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, false);
+        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, true);
         header.numPages++;
         buffer.add(node);
         return node;

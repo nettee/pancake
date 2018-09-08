@@ -131,12 +131,9 @@ public class LeafIndexNode extends IndexNode {
     }
 
     @Override
-    void writeToPage() {
-        byte[] headerBytes = pageHeader.toByteArray();
-        System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
-
+    protected void writeToPage0() {
         for (int i = 0; i < attrs.size(); i++) {
-            byte[] attrBytes = attrs.get(i).getData();
+            byte[] attrBytes = attrs.get(i).toBytes();
             System.arraycopy(attrBytes, 0,
                     page.getData(), attrPos(i),
                     indexHeader.keyLength);

@@ -124,7 +124,14 @@ public abstract class IndexNode {
 
     abstract boolean isFull();
 
-    abstract void writeToPage();
+    final void writeToPage() {
+        byte[] headerBytes = pageHeader.toByteArray();
+        System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
+
+        writeToPage0();
+    }
+
+    protected abstract void writeToPage0();
 
     protected int pointerPos(int i) {
         return HEADER_SIZE +
