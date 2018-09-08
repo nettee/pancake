@@ -51,9 +51,7 @@ public class LeafIndexNode extends IndexNode {
         readFromPage();
     }
 
-    void insert(Attr attr, RID rid) {
-        checkState(!isFull());
-
+    private void insert0(Attr attr, RID rid) {
         // Find insertion point i (0 <= i <= N).
         int i;
         for (i = 0; i < pageHeader.N; i++) {
@@ -64,7 +62,18 @@ public class LeafIndexNode extends IndexNode {
 
         attrs.add(i, attr);
         rids.add(i, rid);
+    }
+
+    void insert(Attr attr, RID rid) {
+        checkState(!isFull());
+        insert0(attr, rid);
         pageHeader.N++;
+    }
+
+    NonLeafIndexNode insertAndSplit(Attr attr, RID rid) {
+        checkState(isFull());
+        insert0(attr, rid);
+        return null;
     }
 
     @Override

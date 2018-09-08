@@ -226,18 +226,23 @@ public class Index {
         }
 
         IndexNode node = getIndexNode(pageNum);
-        if (node.isFull()) {
-            // Split the bucket.
+
+        // TODO Find the leaf node.
+
+        if (!node.isLeaf()) {
             throw new AssertionError();
+        }
+        LeafIndexNode leafNode = (LeafIndexNode) node;
+
+
+        if (leafNode.isFull()) {
+            // Split the bucket.
+            NonLeafIndexNode newNode = leafNode.insertAndSplit(attr, rid);
+            return newNode.getPageNum();
         } else {
-            if (node.isLeaf()) {
-                LeafIndexNode leafNode = (LeafIndexNode) node;
-                leafNode.insert(attr, rid);
-                unpinPage(leafNode);
-                return node.getPageNum();
-            } else {
-                throw new AssertionError();
-            }
+            leafNode.insert(attr, rid);
+            unpinPage(leafNode);
+            return node.getPageNum();
         }
     }
 
