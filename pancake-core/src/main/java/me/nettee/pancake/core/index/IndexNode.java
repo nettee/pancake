@@ -124,6 +124,8 @@ public abstract class IndexNode {
 
     abstract boolean isFull();
 
+    abstract boolean isOverflow();
+
     final void writeToPage() {
         byte[] headerBytes = pageHeader.toByteArray();
         System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);

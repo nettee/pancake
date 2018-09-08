@@ -6,7 +6,6 @@ import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.model.Scan;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -219,8 +218,8 @@ public class Index {
     }
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
-        System.out.printf("bpInsert([%d], <%s>, %s)\n",
-                pageNum, attr.toString(), rid.toString());
+//        System.out.printf("bpInsert([%d], <%s>, %s)\n",
+//                pageNum, attr.toString(), rid.toString());
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
             LeafIndexNode node = createLeafIndexNode();
             node.insert(attr, rid);
@@ -231,29 +230,43 @@ public class Index {
         IndexNode node = getIndexNode(pageNum);
 
         if (!node.isLeaf()) {
-            NonLeafIndexNode nonLeafNode = (NonLeafIndexNode) node;
-            Pair<Integer, Integer> pair = nonLeafNode.findChild(attr);
-            int ci = pair.getLeft();
-            int xn = pair.getRight();
-            System.out.printf("Find [%d]'s child [%d]\n", node.getPageNum(), xn);
-            int pn = bpInsert(xn, attr, rid);
-            nonLeafNode.alterChild(ci, pn);
-            return node.getPageNum();
+//            NonLeafIndexNode nonLeafNode = (NonLeafIndexNode) node;
+//            Pair<Integer, Integer> pair = nonLeafNode.findChild(attr);
+//            int ci = pair.getLeft();
+//            int xn = pair.getRight();
+////            System.out.printf("Find [%d]'s child [%d]\n", node.getPageNum(), xn);
+//            int pn = bpInsert(xn, attr, rid);
+//            nonLeafNode.alterChild(ci, pn);
+//            return node.getPageNum();
+            throw new AssertionError();
         }
 
         LeafIndexNode leafNode = (LeafIndexNode) node;
 
-        if (leafNode.isFull()) {
-            // TODO What if this leaf node has parent?
-            LeafIndexNode otherNode = createLeafIndexNode();
-            NonLeafIndexNode parentNode = createNonLeafIndexNode();
-            leafNode.insertAndSplit(attr, rid, otherNode, parentNode);
-            return parentNode.getPageNum();
-        } else {
-            leafNode.insert(attr, rid);
+        // Insert first, and split at overflow.
+        leafNode.insert(attr, rid);
+
+        if (leafNode.isRoot() && leafNode.isOverflow()) {
+            // Split the root node
+            LeafIndexNode sibling = createLeafIndexNode();
+            leafNode.split(sibling);
+            // Link to leaf nodes to one parent
+            NonLeafIndexNode parent = createNonLeafIndexNode();
+            parent.addTwoChildren(sibling.getFirstAttr(),
+                    leafNode.getPageNum(),
+                    sibling.getPageNum());
+
+            System.out.printf("insert and split: %d - %d - %d\n",
+                    node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
             unpinPage(leafNode);
-            return node.getPageNum();
+            unpinPage(sibling);
+            unpinPage(parent);
+            return parent.getPageNum();
         }
+
+        checkState(!leafNode.isOverflow());
+        unpinPage(leafNode);
+        return leafNode.getPageNum();
     }
 
     private LeafIndexNode createLeafIndexNode() {

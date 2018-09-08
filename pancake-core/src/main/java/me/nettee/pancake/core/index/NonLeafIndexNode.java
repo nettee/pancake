@@ -88,6 +88,11 @@ public class NonLeafIndexNode extends IndexNode {
         return pageHeader.N >= indexHeader.branchingFactor;
     }
 
+    @Override
+    boolean isOverflow() {
+        return pageHeader.N > indexHeader.branchingFactor;
+    }
+
     private void readFromPage() {
         for (int i = 0; i < pageHeader.N - 1; i++) {
             byte[] keyBytes = Arrays.copyOfRange(page.getData(), attrPos(i),

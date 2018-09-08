@@ -64,42 +64,28 @@ public class LeafIndexNode extends IndexNode {
         rids.add(i, rid);
     }
 
-    // Add the first n elements in src to dest1, and others to dest2.
-    private <E> void split0(List<E> src, List<E> other, int n) {
-        int N = src.size();
-        for (int i = n; i < N; i++) {
-            other.add(src.get(i));
-        }
-        for (int i = N - 1; i >= n; i--) {
-            src.remove(i);
-        }
-    }
-
+    // We can insert one more entry when the node is full. The overflowed
+    // node will be split instantly.
     void insert(Attr attr, RID rid) {
-        checkState(!isFull());
+        checkState(!isOverflow());
         insert0(attr, rid);
         pageHeader.N++;
     }
 
-    void insertAndSplit(Attr attr, RID rid,
-                                    LeafIndexNode otherNode,
-                                    NonLeafIndexNode parentNode) {
-        checkState(isFull());
-        insert0(attr, rid);
-
+    void split(LeafIndexNode sibling) {
+        checkState(isOverflow());
         checkState(attrs.size() == rids.size());
         int N = attrs.size();
         int n = N / 2;
 
-        split0(attrs, otherNode.attrs, n);
-        split0(rids, otherNode.rids, n);
+        sibling.attrs.addAll(attrs.subList(n, N));
+        sibling.rids.addAll(rids.subList(n, N));
+
+        attrs.subList(n, N).clear();
+        rids.subList(n, N).clear();
 
         pageHeader.N = n;
-        otherNode.pageHeader.N = N - n;
-
-        parentNode.addTwoChildren(otherNode.attrs.get(0),
-                this.getPageNum(),
-                otherNode.getPageNum());
+        sibling.pageHeader.N = N - n;
 
         // TODO Set right pointer
     }
@@ -112,6 +98,16 @@ public class LeafIndexNode extends IndexNode {
     @Override
     boolean isFull() {
         return pageHeader.N >= indexHeader.branchingFactor - 1;
+    }
+
+    @Override
+    boolean isOverflow() {
+        return pageHeader.N > indexHeader.branchingFactor - 1;
+    }
+
+    Attr getFirstAttr() {
+        checkState(!isEmpty());
+        return attrs.get(0);
     }
 
     private void readFromPage() {
