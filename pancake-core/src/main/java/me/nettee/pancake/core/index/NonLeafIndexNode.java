@@ -6,6 +6,7 @@ import me.nettee.pancake.core.page.Page;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -47,12 +48,23 @@ public class NonLeafIndexNode extends IndexNode {
         readFromPage();
     }
 
-    void addTwoChildren(Attr key, int leftNode, int rightNode) {
+    void addFirstTwoChildren(IndexNode first, IndexNode second) {
         checkState(isEmpty());
-        keys.add(key);
-        pointers.add(new NodePointer(leftNode));
-        pointers.add(new NodePointer(rightNode));
+        keys.add(second.getFirstAttr());
+        pointers.add(new NodePointer(first.getPageNum()));
+        pointers.add(new NodePointer(second.getPageNum()));
         pageHeader.N = 2;
+    }
+
+    void addChild(IndexNode node) {
+        checkState(!isEmpty());
+        Attr key = node.getFirstAttr();
+        NodePointer pointer = new NodePointer(node.getPageNum());
+        int c = Collections.binarySearch(keys, key);
+        int i = c >= 0 ? c : -c - 1; // Insertion point
+        keys.add(i, key);
+        pointers.add(i + 1, pointer);
+        pageHeader.N++;
     }
 
     int findChild(Attr key) {
@@ -64,6 +76,10 @@ public class NonLeafIndexNode extends IndexNode {
         }
         checkState(pointers.size() == keys.size() + 1);
         return pointers.get(keys.size()).getPageNum();
+    }
+
+    void split(NonLeafIndexNode sibling) {
+        throw new AssertionError();
     }
 
     @Override
@@ -79,6 +95,11 @@ public class NonLeafIndexNode extends IndexNode {
     @Override
     boolean isOverflow() {
         return pageHeader.N > indexHeader.branchingFactor;
+    }
+
+    @Override
+    Attr getFirstAttr() {
+        return keys.get(0);
     }
 
     private void readFromPage() {

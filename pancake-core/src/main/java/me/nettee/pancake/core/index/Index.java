@@ -243,9 +243,7 @@ public class Index {
             node.split(sibling);
             // Link to leaf nodes to one parent
             NonLeafIndexNode parent = createNonLeafIndexNode();
-            parent.addTwoChildren(sibling.getFirstAttr(),
-                    node.getPageNum(),
-                    sibling.getPageNum());
+            parent.addFirstTwoChildren(node, sibling);
 
             System.out.printf("insert and split: %d - %d - %d\n",
                     node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
@@ -265,8 +263,9 @@ public class Index {
         IndexNode child = getIndexNode(childPageNum);
 
         if (child.isOverflow()) {
-            // TODO
-            throw new AssertionError();
+            // Split the child node
+            IndexNode sibling = split(child);
+            node.addChild(sibling);
         }
 
         if (node.isRoot() && node.isOverflow()) {
@@ -276,6 +275,26 @@ public class Index {
 
         unpinPage(node);
         return node.getPageNum();
+    }
+
+    private IndexNode split(IndexNode node) {
+        if (node.isLeaf()) {
+            return splitLeaf((LeafIndexNode) node);
+        } else {
+            return splitNonLeaf((NonLeafIndexNode) node);
+        }
+    }
+
+    private LeafIndexNode splitLeaf(LeafIndexNode node) {
+        LeafIndexNode sibling = createLeafIndexNode();
+        node.split(sibling);
+        return sibling;
+    }
+
+    private NonLeafIndexNode splitNonLeaf(NonLeafIndexNode node) {
+        NonLeafIndexNode sibling = createNonLeafIndexNode();
+        node.split(sibling);
+        return sibling;
     }
 
     private LeafIndexNode createLeafIndexNode() {

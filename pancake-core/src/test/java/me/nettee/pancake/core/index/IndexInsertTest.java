@@ -73,7 +73,15 @@ public class IndexInsertTest {
         }
 
         // Phase 4: more splits
-        insertEntry(4001);
+        for (int i = 0; i < 127; i++) {
+            insertEntry(4001 + i);
+        }
+        for (int i = 0; i < 127; i++) {
+            insertEntry(5001 + i);
+        }
+        for (int i = 0; i < 127; i++) {
+            insertEntry(6001 + i);
+        }
 
         index.close();
         index = Index.open(DATA_FILE, INDEX_NO);

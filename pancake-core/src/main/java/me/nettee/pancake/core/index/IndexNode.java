@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.page.Page;
 
 import java.io.*;
@@ -125,6 +126,8 @@ public abstract class IndexNode {
     abstract boolean isFull();
 
     abstract boolean isOverflow();
+
+    abstract Attr getFirstAttr();
 
     final void writeToPage() {
         byte[] headerBytes = pageHeader.toByteArray();

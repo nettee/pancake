@@ -105,6 +105,7 @@ public class LeafIndexNode extends IndexNode {
         return pageHeader.N > indexHeader.branchingFactor - 1;
     }
 
+    @Override
     Attr getFirstAttr() {
         checkState(!isEmpty());
         return attrs.get(0);
