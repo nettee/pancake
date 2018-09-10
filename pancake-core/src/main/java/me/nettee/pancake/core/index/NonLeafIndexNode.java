@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -136,6 +137,10 @@ public class NonLeafIndexNode extends IndexNode {
     @Override
     protected void dump0(PrintWriter out) {
         out.printf("Number of children: %d\n", pageHeader.N);
+        out.printf("Children: %s\n", pointers.stream()
+                .map(NodePointer::getPageNum)
+                .map(String::valueOf)
+                .collect(Collectors.joining(", ")));
 
         for (int i = 0; i < pageHeader.N; i++) {
             out.printf("[%d]", pointers.get(i).getPageNum());

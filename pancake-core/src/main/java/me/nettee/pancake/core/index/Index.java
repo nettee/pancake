@@ -239,8 +239,7 @@ public class Index {
 
         if (node.isRoot() && node.isOverflow()) {
             // Split the root node
-            LeafIndexNode sibling = createLeafIndexNode();
-            node.split(sibling);
+            LeafIndexNode sibling = splitLeaf(node);
             // Link to leaf nodes to one parent
             NonLeafIndexNode parent = createNonLeafIndexNode();
             parent.addFirstTwoChildren(node, sibling);

@@ -58,6 +58,7 @@ public class IndexInsertTest {
     public void test() {
         int branchingFactor = 85;
         int leafCapacity = branchingFactor - 1;
+        int halfCapacity = leafCapacity / 2;
 
         // Phase 1: insert into one node
         for (int i = 0; i < leafCapacity; i++) {
@@ -68,16 +69,26 @@ public class IndexInsertTest {
         insertEntry(201);
 
         // Phase 3: search and insert
-        for (int i = 0; i < 41; i++) {
+        for (int i = 0; i < halfCapacity - 1; i++) {
             insertEntry(301 + i);
         }
 
         // Phase 4: more splits
-        for (int k = 0; k < 6; k++) {
-            insertEntry(1000 + 100 * k);
-            for (int i = 0; i < 41; i++) {
-                insertEntry(1000 + 100 * k + 1 + i);
+        int base4 = 2000;
+        for (int k = 0; k < 3; k++) {
+            insertEntry(base4 + 100 * k);
+            for (int i = 0; i < halfCapacity - 1; i++) {
+                insertEntry(base4 + 100 * k + 1 + i);
             }
+        }
+
+        // Phase 5: split middle
+        int base5 = 1000;
+        for (int k = 5; k > 0; k--) {
+            for (int i = 0; i < halfCapacity; i++) {
+                insertEntry(base5 + 100 * k + i);
+            }
+            insertEntry(base5 + 100 * k + 99);
         }
 
         index.close();
