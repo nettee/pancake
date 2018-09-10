@@ -12,7 +12,7 @@ import java.io.*;
 
 public class IndexInsertTest {
 
-    private static final int RECORD_SIZE = 8;
+    private static final int RECORD_SIZE = 40;
 
     private static final File DATA_FILE = new File("/tmp/ixb.db");
     private static final int INDEX_NO = 0;
@@ -48,13 +48,49 @@ public class IndexInsertTest {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
+    private void insertEntry(int i) {
+        Attr attr = new StringAttr(String.format("paranoid-android-size040-abcde04-%07d", i));
+        RID rid = new RID(4, i);
+        index.insertEntry(attr, rid);
+    }
+
     @Test
     public void test() {
-        for (int i = 1; i <= 50; i++) {
-            Attr attr = new StringAttr(String.format("a000-%03d", i));
-            RID rid = new RID(4, i);
-            index.insertEntry(attr, rid);
+        int branchingFactor = 85;
+        int leafCapacity = branchingFactor - 1;
+        int halfCapacity = leafCapacity / 2;
+
+        // Phase 1: insert into one node
+        for (int i = 0; i < leafCapacity; i++) {
+            insertEntry(101 + i);
         }
+
+        // Phase 2: the first split
+        insertEntry(201);
+
+        // Phase 3: search and insert
+        for (int i = 0; i < halfCapacity - 1; i++) {
+            insertEntry(301 + i);
+        }
+
+        // Phase 4: more splits
+        int base4 = 2000;
+        for (int k = 0; k < 3; k++) {
+            insertEntry(base4 + 100 * k);
+            for (int i = 0; i < halfCapacity - 1; i++) {
+                insertEntry(base4 + 100 * k + 1 + i);
+            }
+        }
+
+        // Phase 5: split middle
+        int base5 = 1000;
+        for (int k = 5; k > 0; k--) {
+            for (int i = 0; i < halfCapacity; i++) {
+                insertEntry(base5 + 100 * k + i);
+            }
+            insertEntry(base5 + 100 * k + 99);
+        }
+
         index.close();
         index = Index.open(DATA_FILE, INDEX_NO);
         System.out.println(index.dump());

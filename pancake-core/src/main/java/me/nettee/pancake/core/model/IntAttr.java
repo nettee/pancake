@@ -16,7 +16,7 @@ public class IntAttr extends Attr {
         throw new UnsupportedOperationException();
     }
 
-    public byte[] getData() {
+    public byte[] toBytes() {
         return ByteBuffer.allocate(LENGTH).putInt(value).array();
     }
 

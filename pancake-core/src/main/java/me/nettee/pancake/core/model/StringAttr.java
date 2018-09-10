@@ -16,7 +16,7 @@ public class StringAttr extends Attr {
     }
 
     @Override
-    public byte[] getData() {
+    public byte[] toBytes() {
         return value.getBytes(StandardCharsets.US_ASCII);
     }
 

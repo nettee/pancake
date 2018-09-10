@@ -219,37 +219,100 @@ public class Index {
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
-            IndexNode node = createIndexNode(true);
-            node.bpInsert(attr, rid);
+            LeafIndexNode node = createLeafIndexNode();
+            node.insert(attr, rid);
             unpinPage(node); // TODO Where to unpin this?
             return node.getPageNum();
         }
 
         IndexNode node = getIndexNode(pageNum);
-        if (!node.isFull()) {
-            node.bpInsert(attr, rid);
-            unpinPage(node);
-            return node.getPageNum();
+        if (node.isLeaf()) {
+            return bpInsertLeaf((LeafIndexNode) node, attr, rid);
+        } else {
+            return bpInsertNonLeaf((NonLeafIndexNode) node, attr, rid);
         }
-
-        // TODO
-        return pageNum;
     }
 
-    private IndexNode createIndexNode(boolean isLeaf) {
-        boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
-        if (isRoot) {
-            System.out.println("creating root node...");
-        } else {
-            System.out.println("creating non-root node...");
+    private int bpInsertLeaf(LeafIndexNode node, Attr attr, RID rid) {
+        // Insert first, and split at overflow.
+        node.insert(attr, rid);
+
+        if (node.isRoot() && node.isOverflow()) {
+            // Split the root node
+            LeafIndexNode sibling = splitLeaf(node);
+            // Link to leaf nodes to one parent
+            NonLeafIndexNode parent = createNonLeafIndexNode();
+            parent.addFirstTwoChildren(node, sibling);
+
+            System.out.printf("insert and split: %d - %d - %d\n",
+                    node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
+            unpinPage(node);
+            unpinPage(sibling);
+            unpinPage(parent);
+            return parent.getPageNum();
         }
 
+        unpinPage(node);
+        return node.getPageNum();
+    }
+
+    private int bpInsertNonLeaf(NonLeafIndexNode node, Attr attr, RID rid) {
+        int childPageNum = node.findChild(attr);
+        bpInsert(childPageNum, attr, rid);
+        IndexNode child = getIndexNode(childPageNum);
+
+        if (child.isOverflow()) {
+            // Split the child node
+            IndexNode sibling = split(child);
+            node.addChild(sibling);
+        }
+
+        if (node.isRoot() && node.isOverflow()) {
+            // TODO
+            throw new AssertionError();
+        }
+
+        unpinPage(node);
+        return node.getPageNum();
+    }
+
+    private IndexNode split(IndexNode node) {
+        if (node.isLeaf()) {
+            return splitLeaf((LeafIndexNode) node);
+        } else {
+            return splitNonLeaf((NonLeafIndexNode) node);
+        }
+    }
+
+    private LeafIndexNode splitLeaf(LeafIndexNode node) {
+        LeafIndexNode sibling = createLeafIndexNode();
+        node.split(sibling);
+        return sibling;
+    }
+
+    private NonLeafIndexNode splitNonLeaf(NonLeafIndexNode node) {
+        NonLeafIndexNode sibling = createNonLeafIndexNode();
+        node.split(sibling);
+        return sibling;
+    }
+
+    private LeafIndexNode createLeafIndexNode() {
+        boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        IndexNode indexNode = IndexNode.create(page, header, isRoot, isLeaf);
+        LeafIndexNode node = IndexNode.createLeaf(page, header, isRoot);
         header.numPages++;
-        buffer.add(indexNode);
-        return indexNode;
+        buffer.add(node);
+        return node;
+    }
+
+    private NonLeafIndexNode createNonLeafIndexNode() {
+        Page page = pagedFile.allocatePage();
+        pagedFile.markDirty(page);
+        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, true);
+        header.numPages++;
+        buffer.add(node);
+        return node;
     }
 
     private IndexNode getIndexNode(int pageNum) {
@@ -316,7 +379,6 @@ public class Index {
         pagedFile.unpinPage(indexNode.getPageNum());
     }
 
-    // For debug only.
     String dump() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(baos);
