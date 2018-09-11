@@ -8,6 +8,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntFunction;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -146,20 +147,25 @@ public class LeafIndexNode extends IndexNode {
 
     @Override
     protected void dump0(PrintWriter out) {
-        out.printf("Number of attrs: %d\n", pageHeader.N);
+        out.printf("Number of attrs: %d%n", pageHeader.N);
+
+        IntFunction<String> f = i -> String.format("[%d]: %s, %s", i, attrs.get(i), rids.get(i));
 
         if (isLeaf()) {
             if (pageHeader.N < 5) {
                 for (int i = 0; i < pageHeader.N; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
+                    out.print(f.apply(i));
+                    out.print("  ");
                 }
             } else {
                 for (int i = 0; i < 3; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
+                    out.print(f.apply(i));
+                    out.print("  ");
                 }
                 out.println("...");
                 for (int i = pageHeader.N - 3; i < pageHeader.N; i++) {
-                    out.printf("[%d]: %s, %s  ", i, attrs.get(i), rids.get(i));
+                    out.print(f.apply(i));
+                    out.print("  ");
                 }
                 out.println();
             }

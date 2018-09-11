@@ -6,11 +6,11 @@ import me.nettee.pancake.core.page.Page;
 
 import java.io.*;
 
-public class IndexHeader {
+class IndexHeader {
 
-    public static int PAGE_NUM_NOT_EXIST = -1;
+    static final int PAGE_NUM_NOT_EXIST = -1;
 
-    private final Magic MAGIC = new Magic("INX-FILE");
+    private static final Magic MAGIC = new Magic("INX-FILE");
 
     AttrType attrType;
     int keyLength;
