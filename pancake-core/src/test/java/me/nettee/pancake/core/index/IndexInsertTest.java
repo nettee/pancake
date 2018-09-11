@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import com.diffplug.common.base.Errors;
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.model.RID;
@@ -9,29 +10,31 @@ import org.junit.*;
 import org.junit.rules.ExpectedException;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class IndexInsertTest {
 
     private static final int RECORD_SIZE = 40;
 
-    private static final File DATA_FILE = new File("/tmp/ixb.db");
+    private static final Path DATA_FILE = Paths.get("/tmp/ixb.db");
     private static final int INDEX_NO = 0;
     private static final AttrType ATTR_TYPE = AttrType.string(RECORD_SIZE);
 
     private Index index;
 
     @BeforeClass
-    public static void setUpBeforeClass() {
-        if (!DATA_FILE.exists()) {
-            RecordFile recordFile = RecordFile.create(DATA_FILE, RECORD_SIZE);
+    public static void setUpBeforeClass() throws IOException {
+        if (!Files.exists(DATA_FILE)) {
+            RecordFile recordFile = RecordFile.create(DATA_FILE.toFile(), RECORD_SIZE);
             recordFile.close();
         }
-        File dir = DATA_FILE.getParentFile();
-        File[] indexFiles = dir.listFiles(file ->
-                file.getName().startsWith(DATA_FILE.getName() + "."));
-        for (File indexFile : indexFiles) {
-            indexFile.delete();
-        }
+        Path dir = DATA_FILE.getParent();
+        String dataFileName = DATA_FILE.getFileName().toString();
+        Files.list(dir)
+                .filter(path -> path.getFileName().toString().startsWith(dataFileName + "."))
+                .forEach(Errors.rethrow().wrap(Files::delete));
     }
 
     @Before

@@ -10,10 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,13 +57,13 @@ public class Index {
     }
 
     private final PagedFile pagedFile;
-    private final File indexFile;
+    private final Path indexFile;
 
     private IndexHeader header;
     private IndexNodeBuffer buffer;
     private boolean open;
 
-    private Index(PagedFile pagedFile, File indexFile) {
+    private Index(PagedFile pagedFile, Path indexFile) {
         this.pagedFile = pagedFile;
         this.indexFile = indexFile;
         header = new IndexHeader();
@@ -85,17 +85,17 @@ public class Index {
      * @param attrType the type of the attribute to be indexed
      * @return the created {@code Index} object
      */
-    public static Index create(File dataFile, int indexNo, AttrType attrType) {
+    public static Index create(Path dataFile, int indexNo, AttrType attrType) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.getPath());
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
         checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
         checkNotNull(attrType);
 
-        logger.info("Creating index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Creating index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         // Duplicated indexNo will fail on this step.
-        PagedFile pagedFile = PagedFile.create(indexFile);
+        PagedFile pagedFile = PagedFile.create(indexFile.toFile());
         checkState(pagedFile.getNumOfPages() == 0,
                 "Created page file is not empty");
         pagedFile.allocatePage(); // As header page
@@ -114,18 +114,18 @@ public class Index {
      * @param dataFile the record file name
      * @param indexNo the index number
      */
-    public static void destroy(File dataFile, int indexNo) {
+    public static void destroy(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.getPath());
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
         checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
 
-        logger.info("Destroying index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Destroying index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
         try {
-            Files.delete(indexFile.toPath());
+            Files.delete(indexFile);
         } catch (IOException e) {
             throw new IndexException(e);
         }
@@ -140,17 +140,17 @@ public class Index {
      * @param indexNo the index number
      * @return the created {@code Index} object
      */
-    public static Index open(File dataFile, int indexNo) {
+    public static Index open(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.getPath());
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
         checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
 
-        logger.info("Opening index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Opening index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
-        PagedFile pagedFile = PagedFile.open(indexFile);
+        PagedFile pagedFile = PagedFile.open(indexFile.toFile());
         checkState(pagedFile.getNumOfPages() > 0,
                 "Opened page file is empty");
 
@@ -163,15 +163,16 @@ public class Index {
         return index;
     }
 
-    private static File joinIndexFile(File dataFile, int indexNo) {
-        String indexFileName = String.format("%s.%d", dataFile.getName(), indexNo);
-        return new File(dataFile.getParentFile(), indexFileName);
+    private static Path joinIndexFile(Path dataFile, int indexNo) {
+        String indexFileName = String.format("%s.%d",
+                dataFile.getFileName().toString(), indexNo);
+        return dataFile.getParent().resolve(indexFileName);
     }
 
-    private static void checkIndexFileExistance(File indexFile, File dataFile, int indexNo) {
-        if (!indexFile.exists()) {
+    private static void checkIndexFileExistance(Path indexFile, Path dataFile, int indexNo) {
+        if (!Files.exists(indexFile)) {
             String msg = String.format("Cannot find index %d on data file %s",
-                    indexNo, dataFile.getAbsolutePath());
+                    indexNo, dataFile.toAbsolutePath().toString());
             throw new IndexException(msg);
         }
     }
@@ -402,7 +403,7 @@ public class Index {
 
         out.println("=============================");
 
-        out.printf("Index file: %s%n", indexFile.getAbsolutePath());
+        out.printf("Index file: %s%n", indexFile.toAbsolutePath().toString());
         out.printf("Number of pages: %d%n", pagedFile.getNumOfPages());
 
         out.println("-----------------------------");

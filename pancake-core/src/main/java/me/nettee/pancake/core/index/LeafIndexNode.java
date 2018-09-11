@@ -4,7 +4,7 @@ import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.page.Page;
 
-import java.io.*;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
