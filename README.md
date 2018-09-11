@@ -11,9 +11,9 @@ Pancake 是一个关系型数据库，它的实现受到了斯坦福 [CS346][cs3
 
 [cs346]: https://web.stanford.edu/class/cs346/2015/
 
-+ paged file (working)
-+ record management (working)
-+ index
++ paged file (done)
++ record management (done)
++ index (working)
 + system management
 + query language
 
