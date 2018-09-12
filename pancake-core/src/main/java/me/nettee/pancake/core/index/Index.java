@@ -1,15 +1,19 @@
 package me.nettee.pancake.core.index;
 
-import me.nettee.pancake.core.page.Page;
-import me.nettee.pancake.core.page.PagedFile;
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.model.Scan;
+import me.nettee.pancake.core.page.Page;
+import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +29,10 @@ import static com.google.common.base.Preconditions.*;
 public class Index {
 
     private static Logger logger = LoggerFactory.getLogger(Index.class);
+
+    private static final String MESSAGE_DATA_FILE_NOT_EXIST = "Data file does not exist: ";
+    private static final String MESSAGE_NEGATIVE_INDEX_NO = "IndexNo should be non-negative";
+    private static final String MESSAGE_INDEX_NOT_OPEN = "Index not open";
 
     private static class IndexNodeBuffer {
 
@@ -49,13 +57,13 @@ public class Index {
     }
 
     private final PagedFile pagedFile;
-    private final File indexFile;
+    private final Path indexFile;
 
     private IndexHeader header;
     private IndexNodeBuffer buffer;
     private boolean open;
 
-    private Index(PagedFile pagedFile, File indexFile) {
+    private Index(PagedFile pagedFile, Path indexFile) {
         this.pagedFile = pagedFile;
         this.indexFile = indexFile;
         header = new IndexHeader();
@@ -77,17 +85,17 @@ public class Index {
      * @param attrType the type of the attribute to be indexed
      * @return the created {@code Index} object
      */
-    public static Index create(File dataFile, int indexNo, AttrType attrType) {
+    public static Index create(Path dataFile, int indexNo, AttrType attrType) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), "data file does not exist: " + dataFile.getPath());
-        checkArgument(indexNo >= 0, "indexNo should be non-negative");
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
+        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
         checkNotNull(attrType);
 
-        logger.info("Creating index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Creating index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         // Duplicated indexNo will fail on this step.
-        PagedFile pagedFile = PagedFile.create(indexFile);
+        PagedFile pagedFile = PagedFile.create(indexFile.toFile());
         checkState(pagedFile.getNumOfPages() == 0,
                 "Created page file is not empty");
         pagedFile.allocatePage(); // As header page
@@ -106,18 +114,21 @@ public class Index {
      * @param dataFile the record file name
      * @param indexNo the index number
      */
-    public static void destroy(File dataFile, int indexNo) {
+    public static void destroy(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), "data file does not exist: " + dataFile.getPath());
-        checkArgument(indexNo >= 0, "indexNo should be non-negative");
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
+        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
 
-        logger.info("Destroying index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Destroying index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
-        boolean deleted = indexFile.delete();
-        checkState(deleted);
+        try {
+            Files.delete(indexFile);
+        } catch (IOException e) {
+            throw new IndexException(e);
+        }
     }
 
     /**
@@ -129,17 +140,17 @@ public class Index {
      * @param indexNo the index number
      * @return the created {@code Index} object
      */
-    public static Index open(File dataFile, int indexNo) {
+    public static Index open(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(dataFile.exists(), "data file does not exist: " + dataFile.getPath());
-        checkArgument(indexNo >= 0, "indexNo should be non-negative");
+        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
+        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
 
-        logger.info("Opening index {} on data file {}", indexNo, dataFile.getPath());
+        logger.info("Opening index {} on data file {}", indexNo, dataFile.toString());
 
-        File indexFile = joinIndexFile(dataFile, indexNo);
+        Path indexFile = joinIndexFile(dataFile, indexNo);
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
-        PagedFile pagedFile = PagedFile.open(indexFile);
+        PagedFile pagedFile = PagedFile.open(indexFile.toFile());
         checkState(pagedFile.getNumOfPages() > 0,
                 "Opened page file is empty");
 
@@ -152,15 +163,16 @@ public class Index {
         return index;
     }
 
-    private static File joinIndexFile(File dataFile, int indexNo) {
-        String indexFileName = String.format("%s.%d", dataFile.getName(), indexNo);
-        return new File(dataFile.getParentFile(), indexFileName);
+    private static Path joinIndexFile(Path dataFile, int indexNo) {
+        String indexFileName = String.format("%s.%d",
+                dataFile.getFileName().toString(), indexNo);
+        return dataFile.getParent().resolve(indexFileName);
     }
 
-    private static void checkIndexFileExistance(File indexFile, File dataFile, int indexNo) {
-        if (!indexFile.exists()) {
+    private static void checkIndexFileExistance(Path indexFile, Path dataFile, int indexNo) {
+        if (!Files.exists(indexFile)) {
             String msg = String.format("Cannot find index %d on data file %s",
-                    indexNo, dataFile.getAbsolutePath());
+                    indexNo, dataFile.toAbsolutePath().toString());
             throw new IndexException(msg);
         }
     }
@@ -208,7 +220,9 @@ public class Index {
      * @param rid the record identifier object
      */
     public void insertEntry(Attr attr, RID rid) {
-        checkState(open, "Index not open");
+        checkNotNull(attr);
+        checkNotNull(rid);
+        checkState(open, MESSAGE_INDEX_NOT_OPEN);
         // TODO check attr type
         bpInsert(attr, rid);
     }
@@ -244,7 +258,7 @@ public class Index {
             NonLeafIndexNode parent = createNonLeafIndexNode();
             parent.addFirstTwoChildren(node, sibling);
 
-            System.out.printf("insert and split: %d - %d - %d\n",
+            logger.debug("insert and split: {} - {} - {}",
                     node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
             unpinPage(node);
             unpinPage(sibling);
@@ -333,16 +347,20 @@ public class Index {
      * @param rid
      */
     public void deleteEntry(Attr attr, RID rid) {
-        checkState(open, "Index not open");
+        checkNotNull(attr);
+        checkNotNull(rid);
+        checkState(open, MESSAGE_INDEX_NOT_OPEN);
+
     }
 
     public Scan<RID> scan() {
-        checkState(open, "Index not open");
+        checkState(open, MESSAGE_INDEX_NOT_OPEN);
         return new IndexScan();
     }
 
     public Scan<RID> scan(Predicate<Attr> predicate) {
-        checkState(open, "Index not open");
+        checkNotNull(predicate);
+        checkState(open, MESSAGE_INDEX_NOT_OPEN);
         return new IndexScan(predicate);
     }
 
@@ -363,7 +381,7 @@ public class Index {
 
         @Override
         public void close() {
-
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -385,15 +403,15 @@ public class Index {
 
         out.println("=============================");
 
-        out.printf("Index file: %s\n", indexFile.getAbsolutePath());
-        out.printf("Number of pages: %d\n", pagedFile.getNumOfPages());
+        out.printf("Index file: %s%n", indexFile.toAbsolutePath().toString());
+        out.printf("Number of pages: %d%n", pagedFile.getNumOfPages());
 
         out.println("-----------------------------");
         out.println("Page[0] - Header page");
-        out.printf("Attr type: %s\n", header.attrType.toString());
-        out.printf("Key length: %d, pointer length: %d\n", header.keyLength, header.pointerLength);
-        out.printf("Branching factor (order of B+ tree): %d\n", header.branchingFactor);
-        out.printf("Root pageNum: %d\n", header.rootPageNum);
+        out.printf("Attr type: %s%n", header.attrType.toString());
+        out.printf("Key length: %d, pointer length: %d%n", header.keyLength, header.pointerLength);
+        out.printf("Branching factor (order of B+ tree): %d%n", header.branchingFactor);
+        out.printf("Root pageNum: %d%n", header.rootPageNum);
 
         for (int i = 1; i < pagedFile.getNumOfPages(); i++) {
             out.println("-----------------------------");

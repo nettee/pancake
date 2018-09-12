@@ -154,7 +154,7 @@ public abstract class IndexNode {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(baos);
 
-        out.printf("Page[%d] - %s, %s\n", getPageNum(),
+        out.printf("Page[%d] - %s, %s%n", getPageNum(),
                 isRoot() ? "root" : "non-root",
                 isLeaf() ? "leaf" : "non-leaf"
         );
@@ -165,5 +165,5 @@ public abstract class IndexNode {
         return baos.toString();
     }
 
-    abstract protected void dump0(PrintWriter out);
+    protected abstract void dump0(PrintWriter out);
 }

@@ -136,8 +136,8 @@ public class NonLeafIndexNode extends IndexNode {
 
     @Override
     protected void dump0(PrintWriter out) {
-        out.printf("Number of children: %d\n", pageHeader.N);
-        out.printf("Children: %s\n", pointers.stream()
+        out.printf("Number of children: %d%n", pageHeader.N);
+        out.printf("Children: %s%n", pointers.stream()
                 .map(NodePointer::getPageNum)
                 .map(String::valueOf)
                 .collect(Collectors.joining(", ")));

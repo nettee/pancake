@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import com.diffplug.common.base.Errors;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.record.RecordFile;
 import org.apache.commons.lang3.RandomUtils;
@@ -9,7 +10,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,24 +24,23 @@ public class IndexManagerTest {
     private static final AttrType ATTR_TYPE = AttrType.string(RECORD_SIZE);
     private static final int MAX_INDEX_NO = 10;
 
-    private static File dataFile = new File("/tmp/ixa.db");
+    private static Path dataFile = Paths.get("/tmp/ixa.db");
 
     @BeforeClass
     public static void setUpBeforeClass() {
-        if (!dataFile.exists()) {
-            RecordFile recordFile = RecordFile.create(dataFile, RECORD_SIZE);
+        if (!Files.exists(dataFile)) {
+            RecordFile recordFile = RecordFile.create(dataFile.toFile(), RECORD_SIZE);
             recordFile.close();
         }
     }
 
     @Before
-    public void setUp() {
-        File dir = dataFile.getParentFile();
-        File[] indexFiles = dir.listFiles(file ->
-                file.getName().startsWith(dataFile.getName() + "."));
-        for (File file : indexFiles) {
-            file.delete();
-        }
+    public void setUp() throws IOException {
+        Path dir = dataFile.getParent();
+        String dataFileName = dataFile.getFileName().toString();
+        Files.list(dir)
+                .filter(path -> path.getFileName().toString().startsWith(dataFileName + "."))
+                .forEach(Errors.rethrow().wrap(Files::delete));
     }
 
     @Rule
