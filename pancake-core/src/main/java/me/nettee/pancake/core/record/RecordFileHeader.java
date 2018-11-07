@@ -20,7 +20,7 @@ public class RecordFileHeader {
 	int numRecords;
 	int numPages;
 	int pageRecordCapacity; // TODO Useless field
-	int firstFreePage;
+	int freeList;
 
 	void init(int recordSize) {
 		this.recordSize = recordSize;
@@ -28,7 +28,7 @@ public class RecordFileHeader {
 		this.numRecords = 0;
 		this.numPages = 1;
 		this.pageRecordCapacity = (Page.DATA_SIZE - RecordPage.HEADER_SIZE) / recordSize;
-		this.firstFreePage = RecordFileHeader.NO_FREE_PAGE;
+		this.freeList = NO_FREE_PAGE;
 	}
 
 	void readFrom(byte[] src) {
@@ -41,7 +41,7 @@ public class RecordFileHeader {
 			numRecords = is.readInt();
 			numPages = is.readInt();
 			pageRecordCapacity = is.readInt();
-			firstFreePage = is.readInt();
+			freeList = is.readInt();
 		} catch (IOException e) {
 			throw new RecordFileException(e);
 		}
@@ -57,7 +57,7 @@ public class RecordFileHeader {
 			os.writeInt(numRecords);
 			os.writeInt(numPages);
 			os.writeInt(pageRecordCapacity);
-			os.writeInt(firstFreePage);
+			os.writeInt(freeList);
 			byte[] data = baos.toByteArray();
 			System.arraycopy(data, 0, dest, 0, data.length);
 		} catch (IOException e) {

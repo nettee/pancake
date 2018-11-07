@@ -265,25 +265,25 @@ public class RecordFile {
 
 	private void insertFreePage(RecordPage recordPage) {
 	    // Insert the number of this page as the header node of linked list.
-        if (header.firstFreePage == RecordFileHeader.NO_FREE_PAGE) {
-            header.firstFreePage = recordPage.getPageNum();
+        if (header.freeList == RecordFileHeader.NO_FREE_PAGE) {
+            header.freeList = recordPage.getPageNum();
         } else {
-            recordPage.setNextFreePage(header.firstFreePage);
-            header.firstFreePage = recordPage.getPageNum();
+            recordPage.setNextFreePage(header.freeList);
+            header.freeList = recordPage.getPageNum();
         }
     }
 
     private boolean hasFreePages() {
-	    return header.firstFreePage != RecordFileHeader.NO_FREE_PAGE;
+	    return header.freeList != RecordFileHeader.NO_FREE_PAGE;
     }
 
     private RecordPage getFirstFreePage() {
-	    return getRecordPage(header.firstFreePage);
+	    return getRecordPage(header.freeList);
     }
 
     private void removeFirstFreePage(RecordPage recordPage) {
-	    checkArgument(header.firstFreePage == recordPage.getPageNum());
-        header.firstFreePage = recordPage.getNextFreePage();
+	    checkArgument(header.freeList == recordPage.getPageNum());
+        header.freeList = recordPage.getNextFreePage();
     }
 
 	/**
