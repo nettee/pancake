@@ -28,7 +28,7 @@ public class IndexManagerTest {
 
     @BeforeClass
     public static void setUpBeforeClass() {
-        if (!Files.exists(dataFile)) {
+        if (Files.notExists(dataFile)) {
             RecordFile recordFile = RecordFile.create(dataFile, RECORD_SIZE);
             recordFile.close();
         }

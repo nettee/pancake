@@ -64,7 +64,7 @@ public class PagedFile {
 	 */
 	public static PagedFile create(Path path) {
 		checkNotNull(path);
-		checkArgument(!Files.exists(path), "file already exists: %s", path.toString());
+		checkArgument(Files.notExists(path), "file already exists: %s", path.toString());
 		logger.info("Creating PagedFile {}", path.toString());
 		PagedFile pagedFile = new PagedFile(path);
 		pagedFile.initPages();

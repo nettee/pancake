@@ -170,7 +170,7 @@ public class Index {
     }
 
     private static void checkIndexFileExistance(Path indexFile, Path dataFile, int indexNo) {
-        if (!Files.exists(indexFile)) {
+        if (Files.notExists(indexFile)) {
             String msg = String.format("Cannot find index %d on data file %s",
                     indexNo, dataFile.toAbsolutePath().toString());
             throw new IndexException(msg);
