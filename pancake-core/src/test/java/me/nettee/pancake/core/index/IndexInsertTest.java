@@ -26,8 +26,8 @@ public class IndexInsertTest {
 
     @BeforeClass
     public static void setUpBeforeClass() throws IOException {
-        if (!Files.exists(DATA_FILE)) {
-            RecordFile recordFile = RecordFile.create(DATA_FILE.toFile(), RECORD_SIZE);
+        if (Files.notExists(DATA_FILE)) {
+            RecordFile recordFile = RecordFile.create(DATA_FILE, RECORD_SIZE);
             recordFile.close();
         }
         Path dir = DATA_FILE.getParent();

@@ -7,27 +7,26 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.stream.Collectors;
 
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class PagedFilePageTest {
 
 	private PagedFile pagedFile;
 
 	@Before
-	public void setUp() {
-		File file = new File("/tmp/a.db");
-		if (file.exists()) {
-			file.delete();
-		}
-		pagedFile = PagedFile.create(file);
+	public void setUp() throws IOException {
+		Path path = Paths.get("/tmp/a.db");
+		Files.deleteIfExists(path);
+		pagedFile = PagedFile.create(path);
 	}
 
 	@After

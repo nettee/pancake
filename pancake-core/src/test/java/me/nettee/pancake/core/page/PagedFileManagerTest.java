@@ -3,11 +3,14 @@ package me.nettee.pancake.core.page;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class PagedFileManagerTest {
 	
-	private File file;
+	private Path path;
 	
 	@BeforeClass
 	public static void setUpBeforeClass() {
@@ -15,11 +18,9 @@ public class PagedFileManagerTest {
 	}
 	
 	@Before
-	public void setUp() {
-		file = new File("/tmp/b.db");
-		if (file.exists()) {
-			file.delete();
-		}
+	public void setUp() throws IOException {
+		path = Paths.get("/tmp/b.db");
+		Files.deleteIfExists(path);
 	}
 	
 	@After
@@ -34,7 +35,7 @@ public class PagedFileManagerTest {
 	 */
 	@Test
 	public void testCreate() {
-		PagedFile pagedFile = PagedFile.create(file);
+		PagedFile pagedFile = PagedFile.create(path);
 		pagedFile.close();
 	}
 
@@ -43,10 +44,10 @@ public class PagedFileManagerTest {
 	 */
 	@Test
 	public void testCreate_createTwice() {
-		PagedFile pf = PagedFile.create(file);
+		PagedFile pf = PagedFile.create(path);
 		pf.close();
 		thrown.expect(Exception.class);
-		PagedFile.create(file);
+		PagedFile.create(path);
 	}
 
 	/**
@@ -54,9 +55,9 @@ public class PagedFileManagerTest {
 	 */
 	@Test
 	public void testOpen() {
-		PagedFile pagedFile = PagedFile.create(file);
+		PagedFile pagedFile = PagedFile.create(path);
 		pagedFile.close();
-		PagedFile pagedFile2 = PagedFile.open(file);
+		PagedFile pagedFile2 = PagedFile.open(path);
 		pagedFile2.close();
 	}
 
@@ -66,7 +67,7 @@ public class PagedFileManagerTest {
 	@Test
 	public void testOpen_withoutCreate() {
 		thrown.expect(Exception.class);
-		PagedFile.open(file);
+		PagedFile.open(path);
 	}
 	
 }

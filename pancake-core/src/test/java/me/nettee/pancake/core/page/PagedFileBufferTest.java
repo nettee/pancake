@@ -3,17 +3,18 @@ package me.nettee.pancake.core.page;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
-import static com.google.common.base.Preconditions.checkState;
 import static me.nettee.pancake.core.page.PagedFileTestUtils.*;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 
 public class PagedFileBufferTest {
 
-	private static final File file = new File("/tmp/c.db");
+	private static final Path path = Paths.get("/tmp/c.db");
 	private PagedFile pagedFile;
 
 	@BeforeClass
@@ -21,11 +22,9 @@ public class PagedFileBufferTest {
 	}
 
 	@Before
-	public void setUp() {
-		if (file.exists()) {
-			file.delete();
-		}
-		pagedFile = PagedFile.create(file);
+	public void setUp() throws IOException {
+		Files.deleteIfExists(path);
+		pagedFile = PagedFile.create(path);
 	}
 
 	@After
@@ -35,7 +34,7 @@ public class PagedFileBufferTest {
 
 	private void reOpen() {
 		pagedFile.close();
-		pagedFile = PagedFile.open(file);
+		pagedFile = PagedFile.open(path);
 	}
 
 	@Rule

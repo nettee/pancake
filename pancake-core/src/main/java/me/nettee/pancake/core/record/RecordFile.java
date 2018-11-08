@@ -8,7 +8,7 @@ import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -63,14 +63,14 @@ public class RecordFile {
 		buffer = new RecordPageBuffer();
 	}
 
-	public static RecordFile create(File file, int recordSize) {
-		checkNotNull(file);
+	public static RecordFile create(Path path, int recordSize) {
+		checkNotNull(path);
 		checkArgument(recordSize >= 4,
 				"record size less than 4 is currently not supported");
 
-		logger.info("Creating RecordFile {}", file.getPath());
+		logger.info("Creating RecordFile {}", path.toString());
 
-		PagedFile pagedFile = PagedFile.create(file);
+		PagedFile pagedFile = PagedFile.create(path);
 		checkState(pagedFile.getNumOfPages() == 0,
 				"Created paged file is not empty");
 		pagedFile.allocatePage(); // As header page
@@ -82,12 +82,12 @@ public class RecordFile {
 		return recordFile;
 	}
 
-	public static RecordFile open(File file) {
-		checkNotNull(file);
+	public static RecordFile open(Path path) {
+		checkNotNull(path);
 
-		logger.info("Opening RecordFile {}", file.getPath());
+		logger.info("Opening RecordFile {}", path.toString());
 
-		PagedFile pagedFile = PagedFile.open(file);
+		PagedFile pagedFile = PagedFile.open(path);
 		checkState(pagedFile.getNumOfPages() > 0,
 				"Opened paged file is empty");
 
