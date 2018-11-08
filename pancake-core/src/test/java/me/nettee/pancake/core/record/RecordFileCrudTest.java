@@ -9,7 +9,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,12 +41,10 @@ public class RecordFileCrudTest {
 	}
 
 	@Before
-	public void setUp() {
-		File file = new File("/tmp/c.db");
-		if (file.exists()) {
-			file.delete();
-		}
-		recordFile = RecordFile.create(file, RECORD_SIZE);
+	public void setUp() throws IOException {
+		Path path = Paths.get("/tmp/c.db");
+		Files.deleteIfExists(path);
+		recordFile = RecordFile.create(path, RECORD_SIZE);
 	}
 
 	@After

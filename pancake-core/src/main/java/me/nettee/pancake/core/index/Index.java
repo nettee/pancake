@@ -95,7 +95,7 @@ public class Index {
 
         Path indexFile = joinIndexFile(dataFile, indexNo);
         // Duplicated indexNo will fail on this step.
-        PagedFile pagedFile = PagedFile.create(indexFile.toFile());
+        PagedFile pagedFile = PagedFile.create(indexFile);
         checkState(pagedFile.getNumOfPages() == 0,
                 "Created page file is not empty");
         pagedFile.allocatePage(); // As header page
@@ -150,7 +150,7 @@ public class Index {
         Path indexFile = joinIndexFile(dataFile, indexNo);
         checkIndexFileExistance(indexFile, dataFile, indexNo);
 
-        PagedFile pagedFile = PagedFile.open(indexFile.toFile());
+        PagedFile pagedFile = PagedFile.open(indexFile);
         checkState(pagedFile.getNumOfPages() > 0,
                 "Opened page file is empty");
 

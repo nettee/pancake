@@ -5,19 +5,20 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class RecordFileManagerTest {
 
 	private static final int RECORD_SIZE = 8;
-	private File file;
+	private Path path;
 
 	@Before
-	public void setUp() {
-		file = new File("/tmp/c.db");
-		if (file.exists()) {
-			file.delete();
-		}
+	public void setUp() throws IOException {
+		path = Paths.get("/tmp/c.db");
+		Files.deleteIfExists(path);
 	}
 	
 	@Rule
@@ -26,30 +27,30 @@ public class RecordFileManagerTest {
 
 	@Test
 	public void testCreate() {
-		RecordFile recordFile = RecordFile.create(file, RECORD_SIZE);
+		RecordFile recordFile = RecordFile.create(path, RECORD_SIZE);
 		recordFile.close();
 	}
 
 	@Test
 	public void testCreate_createTwice() {
-		RecordFile recordFile = RecordFile.create(file, RECORD_SIZE);
+		RecordFile recordFile = RecordFile.create(path, RECORD_SIZE);
 		recordFile.close();
 		
 		thrown.expect(Exception.class);
-		RecordFile.create(file, RECORD_SIZE);
+		RecordFile.create(path, RECORD_SIZE);
 	}
 	
 	@Test
 	public void testOpen() {
-		RecordFile recordFile = RecordFile.create(file, RECORD_SIZE);
+		RecordFile recordFile = RecordFile.create(path, RECORD_SIZE);
 		recordFile.close();
-		RecordFile recordFile2 = RecordFile.open(file);
+		RecordFile recordFile2 = RecordFile.open(path);
 		recordFile2.close();
 	}
 	
 	@Test
 	public void testOpen_withoutCreate() {
 		thrown.expect(Exception.class);
-		RecordFile.open(file);
+		RecordFile.open(path);
 	}
 }

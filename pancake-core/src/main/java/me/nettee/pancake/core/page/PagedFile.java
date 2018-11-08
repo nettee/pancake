@@ -3,11 +3,15 @@ package me.nettee.pancake.core.page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import static com.google.common.base.Preconditions.*;
@@ -42,10 +46,10 @@ public class PagedFile {
 
 	private PageBuffer buffer;
 
-	private PagedFile(File file) {
+	private PagedFile(Path path) {
 		buffer = new PageBuffer(this);
 		try {
-			this.file = new RandomAccessFile(file, "rw");
+			this.file = new RandomAccessFile(path.toFile(), "rw");
 		} catch (FileNotFoundException e) {
 			throw new PagedFileException(e);
 		}
@@ -54,15 +58,15 @@ public class PagedFile {
 	/**
 	 * Create a paged file. The file should not already exist.
 	 * 
-	 * @param file
-	 *            the file in OS
+	 * @param path
+	 *            the path of database file
 	 * @return created paged file
 	 */
-	public static PagedFile create(File file) {
-		checkNotNull(file);
-		checkArgument(!file.exists(), "file already exists: %s", file.getAbsolutePath());
-		logger.info("Creating PagedFile {}", file.getPath());
-		PagedFile pagedFile = new PagedFile(file);
+	public static PagedFile create(Path path) {
+		checkNotNull(path);
+		checkArgument(!Files.exists(path), "file already exists: %s", path.toString());
+		logger.info("Creating PagedFile {}", path.toString());
+		PagedFile pagedFile = new PagedFile(path);
 		pagedFile.initPages();
 		return pagedFile;
 	}
@@ -71,16 +75,16 @@ public class PagedFile {
 	 * Open a paged file. The file must already exist and have been created
 	 * using the <tt>create</tt> method.
 	 * 
-	 * @param file
-	 *            the file in OS
+	 * @param path
+	 *            the path of database file
 	 * @return opened paged file
 	 * @throws PagedFileException
 	 */
-	public static PagedFile open(File file) {
-		checkNotNull(file);
-		checkArgument(file.exists(), "file does not exist: %s", file.getAbsolutePath());
-		logger.info("Opening PagedFile {}", file.getPath());
-		PagedFile pagedFile = new PagedFile(file);
+	public static PagedFile open(Path path) {
+		checkNotNull(path);
+		checkArgument(Files.exists(path), "file does not exist: %s", path.toString());
+		logger.info("Opening PagedFile {}", path.toString());
+		PagedFile pagedFile = new PagedFile(path);
 		try {
 			pagedFile.loadPages();
 		} catch (IOException e) {

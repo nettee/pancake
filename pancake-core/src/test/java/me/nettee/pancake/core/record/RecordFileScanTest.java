@@ -4,13 +4,22 @@ import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.model.Record;
 import me.nettee.pancake.core.model.Scan;
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.io.File;
-import java.util.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -41,12 +50,10 @@ public class RecordFileScanTest {
 	}
 
 	@Before
-	public void setUp() {
-		File file = new File("/tmp/e.db");
-		if (file.exists()) {
-			file.delete();
-		}
-		recordFile = RecordFile.create(file, RECORD_SIZE);
+	public void setUp() throws IOException {
+        Path path = Paths.get("/tmp/e.db");
+        Files.deleteIfExists(path);
+		recordFile = RecordFile.create(path, RECORD_SIZE);
 	}
 
 	@After
