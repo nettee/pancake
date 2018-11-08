@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import static com.google.common.base.Preconditions.*;
@@ -304,29 +305,25 @@ public class PagedFile {
 		return page;
 	}
 
-	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
+	private Page searchPage(int startPageNum, Predicate<Integer> endPredicate,
+							UnaryOperator<Integer> next, String messageOnFail) {
 		int pageNum = startPageNum;
-		// this loop search all pages except endPage
-		while (pageNum != endPageNum) {
+		while (!endPredicate.test(pageNum)) {
 			if (!isDisposed(pageNum)) {
 				return readPage(pageNum);
 			}
 			pageNum = next.apply(pageNum);
-		}
-		// examine endPage
-		if (!isDisposed(endPageNum)) {
-			return readPage(pageNum);
 		}
 		// no page matches
 		throw new PagedFileException(messageOnFail);
 	}
 
 	private Page searchPageIncreasing(int startPageNum, int endPageNum, String messageOnFail) {
-		return searchPage(startPageNum, endPageNum, (x) -> x + 1, messageOnFail);
+		return searchPage(startPageNum, x -> x > endPageNum, x -> x + 1, messageOnFail);
 	}
 
 	private Page searchPageDecreasing(int startPageNum, int endPageNum, String messageOnFail) {
-		return searchPage(startPageNum, endPageNum, (x) -> x - 1, messageOnFail);
+		return searchPage(startPageNum, x -> x < endPageNum, x -> x - 1, messageOnFail);
 	}
 
 	public Page getFirstPage() {
