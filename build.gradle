@@ -1,6 +1,6 @@
-allprojects {
+subprojects {
+
     apply plugin: 'java'
-    apply plugin: 'jacoco'
 
     version = '0.1-SNAPSHOT'
 
@@ -8,13 +8,9 @@ allprojects {
     targetCompatibility = 1.8
 
     repositories {
-        mavenLocal()
-        mavenCentral()
         jcenter()
     }
-}
 
-subprojects {
     dependencies {
         compile 'org.slf4j:slf4j-api:1.7.7'
         compile 'ch.qos.logback:logback-classic:1.1.3'

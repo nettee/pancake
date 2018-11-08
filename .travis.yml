@@ -1,11 +1,2 @@
 language: java
 jdk: oraclejdk8
-install:
-  - sudo pip install codecov
-before_script:
-  - chmod +x gradlew
-script:
-  - ./gradlew check
-  - ./gradlew codeCoverageReport
-after_success:
-  - codecov
