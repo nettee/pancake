@@ -233,6 +233,7 @@ public class PagedFilePageTest {
 	 * You cannot get the last page when there are no pages.
 	 */
 	@Test
+	// FIXME this causes readPage(-1)
 	public void testGetLastPage_emptyPagedFile() {
 		thrown.expect(PagedFileException.class);
 		pagedFile.getLastPage();
@@ -284,6 +285,7 @@ public class PagedFilePageTest {
 	public void testGetPreviousPage_noPrevious() {
 		int N = allocatePages(pagedFile);
 		try {
+			// FIXME this causes readPage(-1)
 			pagedFile.getPreviousPage(0);
 			fail("expect PagedFileException to throw");
 		} catch (PagedFileException e) {
