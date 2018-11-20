@@ -57,6 +57,10 @@ public:
     // Forces a page (along with any contents stored in this class)
     // from the buffer pool to disk.  Default value forces all pages.
     RC ForcePages (PageNum pageNum = ALL_PAGES);
+
+private:
+    PF_FileHandle pfFileHandle;
+    bool bFileHandleOpen;
 };
 
 //
@@ -91,11 +95,19 @@ public:
     RC OpenFile   (const char *fileName, RM_FileHandle &fileHandle);
 
     RC CloseFile  (RM_FileHandle &fileHandle);
+
+private:
+    PF_Manager& pfm;
 };
 
 //
 // Print-error function
 //
 void RM_PrintError(RC rc);
+
+#define RM_FILE_HANDLE_OPEN (START_RM_WARN + 0) // file handle is open
+#define RM_FILE_HANDLE_CLOSED (START_RM_WARN + 1) // file handle is closed
+
+#define RM_RECORD_SIZE_TOO_LARGE (START_RM_ERR - 0) // record size larger than page size
 
 #endif

@@ -195,6 +195,7 @@ void PrintRecord(TestRec &recBuf)
     printf("[%s, %d, %f]\n", recBuf.str, recBuf.num, recBuf.r);
 }
 
+/*
 //
 // AddRecs
 //
@@ -238,7 +239,9 @@ RC AddRecs(RM_FileHandle &fh, int numRecs)
     // Return ok
     return (0);
 }
+*/
 
+/*
 //
 // VerifyFile
 //
@@ -315,7 +318,9 @@ err:
     delete[] found;
     return (rc);
 }
+*/
 
+/*
 //
 // PrintFile
 //
@@ -353,6 +358,7 @@ RC PrintFile(RM_FileScan &fs)
     // Return ok
     return (0);
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////
 // The following functions are wrappers for some of the RM component  //
@@ -405,6 +411,7 @@ RC CloseFile(char *fileName, RM_FileHandle &fh)
     return (rmm.CloseFile(fh));
 }
 
+/*
 //
 // InsertRec
 //
@@ -444,6 +451,7 @@ RC GetNextRecScan(RM_FileScan &fs, RM_Record &rec)
 {
     return (fs.GetNextRec(rec));
 }
+*/
 
 /////////////////////////////////////////////////////////////////////
 // Sample test functions follow.                                   //
@@ -478,6 +486,7 @@ RC Test1(void)
 //
 RC Test2(void)
 {
+/*
     RC            rc;
     RM_FileHandle fh;
 
@@ -496,4 +505,5 @@ RC Test2(void)
 
     printf("\ntest2 done ********************\n");
     return (0);
+*/
 }
