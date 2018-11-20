@@ -1,0 +1,10 @@
+cmake-build-debug/
+
+build/
+lib/
+
+src/
+!src/*.cc
+!src/*.h
+!src/Makefile
+!src/submit
