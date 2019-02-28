@@ -17,4 +17,13 @@ public abstract class Attr implements Comparable<Attr> {
             throw new IllegalArgumentException();
         }
     }
+
+    // For debug only
+    public String toSimplifiedString() {
+        String s = toString();
+        if (this instanceof StringAttr && s.length() > 7) {
+            s = s.substring(s.length() - 7);
+        }
+        return s;
+    }
 }

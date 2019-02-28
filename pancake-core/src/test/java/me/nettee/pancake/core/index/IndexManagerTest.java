@@ -20,7 +20,7 @@ import java.util.List;
 
 public class IndexManagerTest {
 
-    private static final int RECORD_SIZE = 8;
+    private static final int RECORD_SIZE = 16;
     private static final AttrType ATTR_TYPE = AttrType.string(RECORD_SIZE);
     private static final int MAX_INDEX_NO = 10;
 
@@ -28,6 +28,7 @@ public class IndexManagerTest {
 
     @BeforeClass
     public static void setUpBeforeClass() {
+        // The RecordFile must exists before creating index files.
         if (Files.notExists(dataFile)) {
             RecordFile recordFile = RecordFile.create(dataFile, RECORD_SIZE);
             recordFile.close();
@@ -37,9 +38,11 @@ public class IndexManagerTest {
     @Before
     public void setUp() throws IOException {
         Path dir = dataFile.getParent();
-        String dataFileName = dataFile.getFileName().toString();
+        String prefix = dataFile.getFileName().toString() + ".";
         Files.list(dir)
-                .filter(path -> path.getFileName().toString().startsWith(dataFileName + "."))
+                .filter(path -> path.getFileName().toString().startsWith(prefix))
+                // Workaround: inside forEach, we want to call Files::delete,
+                // which throws IOException
                 .forEach(Errors.rethrow().wrap(Files::delete));
     }
 
@@ -109,23 +112,30 @@ public class IndexManagerTest {
     @Test
     public void testCreateDestroyCreate() {
         int indexNo = randomIndexNo();
-        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
-        index.close();
-
-        Index.destroy(dataFile, indexNo);
-
-        Index index2 = Index.create(dataFile, indexNo, ATTR_TYPE);
-        index2.close();
+        {
+            Index index1 = Index.create(dataFile, indexNo, ATTR_TYPE);
+            index1.close();
+        }
+        {
+            Index.destroy(dataFile, indexNo);
+        }
+        {
+            Index index2 = Index.create(dataFile, indexNo, ATTR_TYPE);
+            index2.close();
+        }
     }
 
     @Test
     public void testOpen() {
         int indexNo = randomIndexNo();
-        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
-        index.close();
-
-        Index index2 = Index.open(dataFile, indexNo);
-        index2.close();
+        {
+            Index index1 = Index.create(dataFile, indexNo, ATTR_TYPE);
+            index1.close();
+        }
+        {
+            Index index2 = Index.open(dataFile, indexNo);
+            index2.close();
+        }
     }
 
     @Test
@@ -138,13 +148,17 @@ public class IndexManagerTest {
     @Test
     public void testOpenDestroyed() {
         int indexNo = randomIndexNo();
-        Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
-        index.close();
-
-        Index.destroy(dataFile, indexNo);
-
-        thrown.expect(Exception.class);
-        Index.open(dataFile, indexNo);
+        {
+            Index index = Index.create(dataFile, indexNo, ATTR_TYPE);
+            index.close();
+        }
+        {
+            Index.destroy(dataFile, indexNo);
+        }
+        {
+            thrown.expect(Exception.class);
+            Index.open(dataFile, indexNo);
+        }
     }
 
     @Test

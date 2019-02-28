@@ -16,14 +16,14 @@ class IndexHeader {
     int keyLength;
     int pointerLength;
     int branchingFactor;
-    int numPages;
+    int numPages; // This field is not currently serialized
     int rootPageNum;
 
     void init(AttrType attrType) {
         this.attrType = attrType;
         this.keyLength = attrType.getLength();
         this.pointerLength = NodePointer.SIZE;
-        this.branchingFactor = (Page.DATA_SIZE - LeafIndexNode.HEADER_SIZE
+        this.branchingFactor = (Page.DATA_SIZE - IndexNode.HEADER_SIZE
                 + keyLength) / (keyLength + pointerLength);
         this.numPages = 1; // TODO Is this field necessary?
         this.rootPageNum = PAGE_NUM_NOT_EXIST;
@@ -59,5 +59,14 @@ class IndexHeader {
         } catch (IOException e) {
             throw new IndexException(e);
         }
+    }
+
+    // For debug only
+    void dump(PrintWriter out) {
+        out.println("Page[0] - Header page");
+        out.printf("Attr type: %s%n", attrType.toString());
+        out.printf("Key length: %d, pointer length: %d%n", keyLength, pointerLength);
+        out.printf("Branching factor (order of B+ tree): %d%n", branchingFactor);
+        out.printf("Root pageNum: %d%n", rootPageNum);
     }
 }

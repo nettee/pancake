@@ -5,6 +5,11 @@ import java.nio.ByteBuffer;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+/**
+ * The size of {@code NodePointer} is set to 8, the same as {@code RID},
+ * so that the leaf node and non-leaf node in B+ tree can have the same
+ * branching factor.
+ */
 public class NodePointer {
 
     static final int SIZE = 8;

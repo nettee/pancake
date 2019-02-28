@@ -1,9 +1,6 @@
 package me.nettee.pancake.core.index;
 
-import me.nettee.pancake.core.model.Attr;
-import me.nettee.pancake.core.model.AttrType;
-import me.nettee.pancake.core.model.RID;
-import me.nettee.pancake.core.model.Scan;
+import me.nettee.pancake.core.model.*;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
 import org.slf4j.Logger;
@@ -25,14 +22,13 @@ import static com.google.common.base.Preconditions.*;
 /**
  * {@code Index} object is used to handle index files, i.e. insert and delete
  * index entries.
+ *
+ * We implement the B+ tree data structure. Reference
+ * <a href="https://en.wikipedia.org/wiki/B%2B_tree">Wikipedia</a> for terms.
  */
 public class Index {
 
     private static Logger logger = LoggerFactory.getLogger(Index.class);
-
-    private static final String MESSAGE_DATA_FILE_NOT_EXIST = "Data file does not exist: ";
-    private static final String MESSAGE_NEGATIVE_INDEX_NO = "IndexNo should be non-negative";
-    private static final String MESSAGE_INDEX_NOT_OPEN = "Index not open";
 
     private static class IndexNodeBuffer {
 
@@ -87,8 +83,8 @@ public class Index {
      */
     public static Index create(Path dataFile, int indexNo, AttrType attrType) {
         checkNotNull(dataFile);
-        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
-        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
+        checkArgument(Files.exists(dataFile), messageDataFileNotExist(dataFile));
+        checkArgument(indexNo >= 0, messageNegativeIndexNo(indexNo));
         checkNotNull(attrType);
 
         logger.info("Creating index {} on data file {}", indexNo, dataFile.toString());
@@ -116,8 +112,8 @@ public class Index {
      */
     public static void destroy(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
-        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
+        checkArgument(Files.exists(dataFile), messageDataFileNotExist(dataFile));
+        checkArgument(indexNo >= 0, messageNegativeIndexNo(indexNo));
 
         logger.info("Destroying index {} on data file {}", indexNo, dataFile.toString());
 
@@ -142,8 +138,8 @@ public class Index {
      */
     public static Index open(Path dataFile, int indexNo) {
         checkNotNull(dataFile);
-        checkArgument(Files.exists(dataFile), MESSAGE_DATA_FILE_NOT_EXIST + dataFile.toString());
-        checkArgument(indexNo >= 0, MESSAGE_NEGATIVE_INDEX_NO);
+        checkArgument(Files.exists(dataFile), messageDataFileNotExist(dataFile));
+        checkArgument(indexNo >= 0, messageNegativeIndexNo(indexNo));
 
         logger.info("Opening index {} on data file {}", indexNo, dataFile.toString());
 
@@ -177,6 +173,18 @@ public class Index {
         }
     }
 
+    private static String messageDataFileNotExist(Path dataFile) {
+        return "Data file does not exist: " + dataFile.toString();
+    }
+
+    private static String messageNegativeIndexNo(int indexNo) {
+        return "IndexNo should be non-negative: " + indexNo;
+    }
+
+    private String messageIndexNotOpen() {
+        return "Index not open";
+    }
+
     /**
      * Close the {@code Index} object.
      */
@@ -208,22 +216,31 @@ public class Index {
         }
     }
 
+    private void checkAttrType(Attr attr) {
+        try {
+            header.attrType.check(attr);
+        } catch (IllegalArgumentException e) {
+            throw new IndexException(e);
+        }
+    }
+
     /**
      * Insert a new entry into the index.
      * <p>
-     * An index entry is a pair {@code (attr, rid)}, in which
-     * {@code attr} is the attribute value, and
+     * An index entry is a key-value pair {@code (attr, rid)}, in which
+     * {@code attr} is the attribute value, and {@code rid} is the record ID.
      * <p>
-     * This method throws an exception if there is already an entry for
-     * ({@code attr}, {@code rid}) in the index.
-     * @param attr the attribute object
-     * @param rid the record identifier object
+     * This method throws an exception if there is already an {@code attr}
+     * key in the index.
+     * @param attr the attribute object (as key)
+     * @param rid the record identifier object (as value)
      */
     public void insertEntry(Attr attr, RID rid) {
         checkNotNull(attr);
         checkNotNull(rid);
-        checkState(open, MESSAGE_INDEX_NOT_OPEN);
-        // TODO check attr type
+        checkState(open, messageIndexNotOpen());
+        checkAttrType(attr);
+        logger.debug("Insert entry: attr = {}, rid = {}", attr.toSimplifiedString(), rid);
         bpInsert(attr, rid);
     }
 
@@ -251,15 +268,21 @@ public class Index {
         // Insert first, and split at overflow.
         node.insert(attr, rid);
 
+        // Case: the single root node overflows.
+        // The one node must split to three nodes:
+        // (1) the origin node, (2) the sibling node, (3) the new root node
         if (node.isRoot() && node.isOverflow()) {
+            logger.debug("Overflow on node [{}] (single root node). Split.", node.getPageNum());
             // Split the root node
             LeafIndexNode sibling = splitLeaf(node);
-            // Link to leaf nodes to one parent
+            node.indexNodeHeader.isRoot = false;
+            // Link to leaf nodes to parent (the new root)
             NonLeafIndexNode parent = createNonLeafIndexNode();
             parent.addFirstTwoChildren(node, sibling);
 
-            logger.debug("insert and split: {} - {} - {}",
-                    node.getPageNum(), parent.getPageNum(), sibling.getPageNum());
+            logger.debug("Split result: [{}] => [{}][{}], parent = [{}]",
+                    node.getPageNum(), node.getPageNum(),
+                    sibling.getPageNum(), parent.getPageNum());
             unpinPage(node);
             unpinPage(sibling);
             unpinPage(parent);
@@ -276,9 +299,14 @@ public class Index {
         IndexNode child = getIndexNode(childPageNum);
 
         if (child.isOverflow()) {
+            logger.debug("Overflow on node [{}] (child of node [{}]). Split.",
+                    child.getPageNum(), node.getPageNum());
             // Split the child node
             IndexNode sibling = split(child);
             node.addChild(sibling);
+            logger.debug("Split result: [{}] => [{}][{}], parent = [{}]",
+                    child.getPageNum(), child.getPageNum(),
+                    sibling.getPageNum(), node.getPageNum());
         }
 
         if (node.isRoot() && node.isOverflow()) {
@@ -317,6 +345,7 @@ public class Index {
         LeafIndexNode node = IndexNode.createLeaf(page, header, isRoot);
         header.numPages++;
         buffer.add(node);
+        logger.debug("Node [{}] created, node type: {}", node.getPageNum(), node.getNodeTypeString());
         return node;
     }
 
@@ -326,6 +355,7 @@ public class Index {
         NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, true);
         header.numPages++;
         buffer.add(node);
+        logger.debug("Node [{}] created, node type: {}", node.getPageNum(), node.getNodeTypeString());
         return node;
     }
 
@@ -349,18 +379,18 @@ public class Index {
     public void deleteEntry(Attr attr, RID rid) {
         checkNotNull(attr);
         checkNotNull(rid);
-        checkState(open, MESSAGE_INDEX_NOT_OPEN);
+        checkState(open, messageIndexNotOpen());
 
     }
 
     public Scan<RID> scan() {
-        checkState(open, MESSAGE_INDEX_NOT_OPEN);
+        checkState(open, messageIndexNotOpen());
         return new IndexScan();
     }
 
     public Scan<RID> scan(Predicate<Attr> predicate) {
         checkNotNull(predicate);
-        checkState(open, MESSAGE_INDEX_NOT_OPEN);
+        checkState(open, messageIndexNotOpen());
         return new IndexScan(predicate);
     }
 
@@ -397,7 +427,7 @@ public class Index {
         pagedFile.unpinPage(indexNode.getPageNum());
     }
 
-    String dump() {
+    String dump(boolean verbose) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PrintWriter out = new PrintWriter(baos);
 
@@ -407,16 +437,12 @@ public class Index {
         out.printf("Number of pages: %d%n", pagedFile.getNumOfPages());
 
         out.println("-----------------------------");
-        out.println("Page[0] - Header page");
-        out.printf("Attr type: %s%n", header.attrType.toString());
-        out.printf("Key length: %d, pointer length: %d%n", header.keyLength, header.pointerLength);
-        out.printf("Branching factor (order of B+ tree): %d%n", header.branchingFactor);
-        out.printf("Root pageNum: %d%n", header.rootPageNum);
+        header.dump(out);
 
         for (int i = 1; i < pagedFile.getNumOfPages(); i++) {
             out.println("-----------------------------");
             IndexNode indexNode = getIndexNode(i);
-            out.print(indexNode.dump());
+            indexNode.dump(out, verbose);
         }
 
         out.println("=============================");

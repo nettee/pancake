@@ -2,6 +2,7 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.RID;
+import me.nettee.pancake.core.model.StringAttr;
 import me.nettee.pancake.core.page.Page;
 
 import java.io.PrintWriter;
@@ -13,10 +14,17 @@ import java.util.function.IntFunction;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+/**
+ * The layout of leaf index node:
+ * Let b = branching factor, we have b-1 attrs (i.e. keys), b-1 rids (i.e.
+ * values), and one right pointer. Note that the values have the same size as
+ * pointers in non-leaf nodes. So b rids, together with one right pointer,
+ * occupy the same size as b pointers in non-leaf nodes.
+ */
 public class LeafIndexNode extends IndexNode {
 
-    private List<Attr> attrs;
-    private List<RID> rids;
+    private List<Attr> attrs; // size: b-1
+    private List<RID> rids; // size: b-1
     private NodePointer rightPointer;
 
     private LeafIndexNode(Page page, IndexHeader indexHeader) {
@@ -26,8 +34,8 @@ public class LeafIndexNode extends IndexNode {
         rightPointer = null;
     }
 
-    private LeafIndexNode(Page page, IndexHeader indexHeader, Header pageHeader) {
-        super(page, indexHeader,pageHeader);
+    private LeafIndexNode(Page page, IndexHeader indexHeader, IndexNodeHeader pageIndexNodeHeader) {
+        super(page, indexHeader, pageIndexNodeHeader);
         attrs = new ArrayList<>(indexHeader.branchingFactor - 1);
         rids = new ArrayList<>(indexHeader.branchingFactor - 1);
         rightPointer = null;
@@ -41,9 +49,9 @@ public class LeafIndexNode extends IndexNode {
         return node;
     }
 
-    public static LeafIndexNode open(Page page, IndexHeader indexHeader, Header pageHeader) {
-        checkArgument(pageHeader.isLeaf);
-        LeafIndexNode node = new LeafIndexNode(page, indexHeader, pageHeader);
+    public static LeafIndexNode open(Page page, IndexHeader indexHeader, IndexNodeHeader pageIndexNodeHeader) {
+        checkArgument(pageIndexNodeHeader.isLeaf);
+        LeafIndexNode node = new LeafIndexNode(page, indexHeader, pageIndexNodeHeader);
         node.load();
         return node;
     }
@@ -54,10 +62,16 @@ public class LeafIndexNode extends IndexNode {
 
     private void insert0(Attr attr, RID rid) {
         // Find insertion point i (0 <= i <= N).
+        // i == N means the new attr should be append to the last.
+        // TODO use binary search
         int i;
-        for (i = 0; i < pageHeader.N; i++) {
-            if (attr.compareTo(attrs.get(i)) < 0) {
+        for (i = 0; i < indexNodeHeader.N; i++) {
+            int c = attr.compareTo(attrs.get(i));
+            if (c < 0) {
                 break;
+            } else if (c == 0) {
+                // Duplicated key found.
+                throw new IndexException("Duplicated key: " + attr.toString());
             }
         }
 
@@ -70,23 +84,24 @@ public class LeafIndexNode extends IndexNode {
     void insert(Attr attr, RID rid) {
         checkState(!isOverflow());
         insert0(attr, rid);
-        pageHeader.N++;
+        indexNodeHeader.N++;
     }
 
     void split(LeafIndexNode sibling) {
         checkState(isOverflow());
         checkState(attrs.size() == rids.size());
-        int N = attrs.size();
-        int n = N / 2;
+        int curSize = attrs.size();
+        int newSize = curSize / 2;
 
-        sibling.attrs.addAll(attrs.subList(n, N));
-        sibling.rids.addAll(rids.subList(n, N));
+        // Move the last half to sibling
+        sibling.attrs.addAll(attrs.subList(newSize, curSize));
+        sibling.rids.addAll(rids.subList(newSize, curSize));
 
-        attrs.subList(n, N).clear();
-        rids.subList(n, N).clear();
+        attrs.subList(newSize, curSize).clear();
+        rids.subList(newSize, curSize).clear();
 
-        pageHeader.N = n;
-        sibling.pageHeader.N = N - n;
+        indexNodeHeader.N = newSize;
+        sibling.indexNodeHeader.N = curSize - newSize;
 
         // TODO Set right pointer
     }
@@ -96,14 +111,16 @@ public class LeafIndexNode extends IndexNode {
         return true;
     }
 
+    // Note: this is one less than that in non-leaf nodes
     @Override
     boolean isFull() {
-        return pageHeader.N >= indexHeader.branchingFactor - 1;
+        return indexNodeHeader.N >= indexHeader.branchingFactor - 1;
     }
 
+    // Note: this is one less than that in non-leaf nodes
     @Override
     boolean isOverflow() {
-        return pageHeader.N > indexHeader.branchingFactor - 1;
+        return indexNodeHeader.N > indexHeader.branchingFactor - 1;
     }
 
     @Override
@@ -113,13 +130,13 @@ public class LeafIndexNode extends IndexNode {
     }
 
     private void readFromPage() {
-        for (int i = 0; i < pageHeader.N; i++) {
+        for (int i = 0; i < indexNodeHeader.N; i++) {
             byte[] attrBytes = Arrays.copyOfRange(page.getData(), attrPos(i),
                     attrPos(i) + indexHeader.keyLength);
             Attr attr = Attr.fromBytes(indexHeader.attrType, attrBytes);
             attrs.add(attr);
         }
-        for (int i = 0; i < pageHeader.N; i++) {
+        for (int i = 0; i < indexNodeHeader.N; i++) {
             byte[] ridBytes = Arrays.copyOfRange(page.getData(), pointerPos(i),
                     pointerPos(i) + indexHeader.pointerLength);
             RID rid = RID.fromBytes(ridBytes);
@@ -146,29 +163,36 @@ public class LeafIndexNode extends IndexNode {
     }
 
     @Override
-    protected void dump0(PrintWriter out) {
-        out.printf("Number of attrs: %d%n", pageHeader.N);
+    protected void dump0(PrintWriter out, boolean verbose) {
+        out.printf("Number of attrs: %d%n", indexNodeHeader.N);
 
-        IntFunction<String> f = i -> String.format("[%d]: %s, %s", i, attrs.get(i), rids.get(i));
+        if (!isLeaf()) {
+            return;
+        }
 
-        if (isLeaf()) {
-            if (pageHeader.N < 5) {
-                for (int i = 0; i < pageHeader.N; i++) {
-                    out.print(f.apply(i));
-                    out.print("  ");
+        IntFunction<String> f = i -> String.format("[%d]: %s, %s", i,
+                attrs.get(i).toSimplifiedString(), rids.get(i));
+
+        if (verbose || indexNodeHeader.N < 5) {
+            for (int i = 0; i < indexNodeHeader.N; i++) {
+                out.print(f.apply(i));
+                out.print("  ");
+                if (i != indexNodeHeader.N - 1 && i % 5 == 4) {
+                    out.println();
                 }
-            } else {
-                for (int i = 0; i < 3; i++) {
-                    out.print(f.apply(i));
-                    out.print("  ");
-                }
-                out.println("...");
-                for (int i = pageHeader.N - 3; i < pageHeader.N; i++) {
-                    out.print(f.apply(i));
-                    out.print("  ");
-                }
-                out.println();
             }
+            out.println();
+        } else {
+            for (int i = 0; i < 3; i++) {
+                out.print(f.apply(i));
+                out.print("  ");
+            }
+            out.print("... ");
+            for (int i = indexNodeHeader.N - 3; i < indexNodeHeader.N; i++) {
+                out.print(f.apply(i));
+                out.print("  ");
+            }
+            out.println();
         }
     }
 

@@ -13,10 +13,14 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+/**
+ * The layout of non-leaf index node:
+ * Let b = branching factor, we have b-1 keys and b pointers.
+ */
 public class NonLeafIndexNode extends IndexNode {
 
-    private List<Attr> keys;
-    private List<NodePointer> pointers;
+    private List<Attr> keys; // size: b-1
+    private List<NodePointer> pointers; // size: b
 
     private NonLeafIndexNode(Page page, IndexHeader indexHeader) {
         super(page, indexHeader);
@@ -24,8 +28,8 @@ public class NonLeafIndexNode extends IndexNode {
         pointers = new ArrayList<>(indexHeader.branchingFactor);
     }
 
-    private NonLeafIndexNode(Page page, IndexHeader indexHeader, Header pageHeader) {
-        super(page, indexHeader, pageHeader);
+    private NonLeafIndexNode(Page page, IndexHeader indexHeader, IndexNodeHeader pageIndexNodeHeader) {
+        super(page, indexHeader, pageIndexNodeHeader);
         keys = new ArrayList<>(indexHeader.branchingFactor - 1);
         pointers = new ArrayList<>(indexHeader.branchingFactor);
     }
@@ -38,9 +42,9 @@ public class NonLeafIndexNode extends IndexNode {
         return node;
     }
 
-    public static NonLeafIndexNode open(Page page, IndexHeader indexHeader, Header pageHeader) {
-        checkArgument(!pageHeader.isLeaf);
-        NonLeafIndexNode node = new NonLeafIndexNode(page, indexHeader, pageHeader);
+    public static NonLeafIndexNode open(Page page, IndexHeader indexHeader, IndexNodeHeader pageIndexNodeHeader) {
+        checkArgument(!pageIndexNodeHeader.isLeaf);
+        NonLeafIndexNode node = new NonLeafIndexNode(page, indexHeader, pageIndexNodeHeader);
         node.load();
         return node;
     }
@@ -54,7 +58,7 @@ public class NonLeafIndexNode extends IndexNode {
         keys.add(second.getFirstAttr());
         pointers.add(new NodePointer(first.getPageNum()));
         pointers.add(new NodePointer(second.getPageNum()));
-        pageHeader.N = 2;
+        indexNodeHeader.N = 2;
     }
 
     void addChild(IndexNode node) {
@@ -65,7 +69,7 @@ public class NonLeafIndexNode extends IndexNode {
         int i = c >= 0 ? c : -c - 1; // Insertion point
         keys.add(i, key);
         pointers.add(i + 1, pointer);
-        pageHeader.N++;
+        indexNodeHeader.N++;
     }
 
     int findChild(Attr key) {
@@ -90,12 +94,12 @@ public class NonLeafIndexNode extends IndexNode {
 
     @Override
     boolean isFull() {
-        return pageHeader.N >= indexHeader.branchingFactor;
+        return indexNodeHeader.N >= indexHeader.branchingFactor;
     }
 
     @Override
     boolean isOverflow() {
-        return pageHeader.N > indexHeader.branchingFactor;
+        return indexNodeHeader.N > indexHeader.branchingFactor;
     }
 
     @Override
@@ -104,13 +108,13 @@ public class NonLeafIndexNode extends IndexNode {
     }
 
     private void readFromPage() {
-        for (int i = 0; i < pageHeader.N - 1; i++) {
+        for (int i = 0; i < indexNodeHeader.N - 1; i++) {
             byte[] keyBytes = Arrays.copyOfRange(page.getData(), attrPos(i),
                     attrPos(i) + indexHeader.keyLength);
             Attr key = Attr.fromBytes(indexHeader.attrType, keyBytes);
             keys.add(key);
         }
-        for (int i = 0; i < pageHeader.N; i++) {
+        for (int i = 0; i < indexNodeHeader.N; i++) {
             byte[] pointerBytes = Arrays.copyOfRange(page.getData(), pointerPos(i),
                     pointerPos(i) + indexHeader.pointerLength);
             NodePointer pointer = NodePointer.fromBytes(pointerBytes);
@@ -135,17 +139,19 @@ public class NonLeafIndexNode extends IndexNode {
     }
 
     @Override
-    protected void dump0(PrintWriter out) {
-        out.printf("Number of children: %d%n", pageHeader.N);
+    protected void dump0(PrintWriter out, boolean verbose) {
+        out.printf("Number of children: %d%n", indexNodeHeader.N);
         out.printf("Children: %s%n", pointers.stream()
                 .map(NodePointer::getPageNum)
                 .map(String::valueOf)
                 .collect(Collectors.joining(", ")));
 
-        for (int i = 0; i < pageHeader.N; i++) {
+        for (int i = 0; i < indexNodeHeader.N; i++) {
             out.printf("[%d]", pointers.get(i).getPageNum());
-            if (i < pageHeader.N - 1) {
-                out.printf(" %s ", keys.get(i));
+            if (i < indexNodeHeader.N - 1) {
+                out.print(" ");
+                out.print(keys.get(i).toSimplifiedString());
+                out.print(" ");
             }
         }
         out.println();

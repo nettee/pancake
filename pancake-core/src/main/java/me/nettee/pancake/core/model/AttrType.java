@@ -1,6 +1,8 @@
 package me.nettee.pancake.core.model;
 
 import java.io.*;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -13,7 +15,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class AttrType {
 
-    private static int MAX_STRING_LEN = 256;
+    private static int MAX_STRING_LEN = 512;
 
     // TODO flyweight pattern
 
@@ -84,6 +86,41 @@ public class AttrType {
         int typeValue = in.readInt();
         int length = in.readInt();
         return new AttrType(Type.fromInt(typeValue), length);
+    }
+
+    /**
+     * Check whether {@code attr} instance is the same with this type.
+     * @param attr the {@code Attr} instance
+     * @throws IllegalArgumentException if type not match.
+     */
+    public void check(Attr attr) {
+        Consumer<String> throwException = s -> {
+            String msg = String.format("Attr type not match: expected %s, actual %s", toString(), s);
+            throw new IllegalArgumentException(msg);
+        };
+        switch (type) {
+            case INT:
+                if (!(attr instanceof IntAttr)) {
+                    throwException.accept(attr.getClass().getSimpleName());
+                }
+                break;
+            case FLOAT:
+                if (!(attr instanceof FloatAttr)) {
+                    throwException.accept(attr.getClass().getSimpleName());
+                }
+                break;
+            case STRING:
+                if (attr instanceof StringAttr) {
+                    StringAttr stringAttr = (StringAttr) attr;
+                    if (getLength() != stringAttr.getLength()) {
+                        throwException.accept("STRING(" + stringAttr.getLength() + ")");
+                    }
+                } else {
+                    throwException.accept(attr.getClass().getSimpleName());
+                }
+                break;
+            default: throw new AssertionError();
+        }
     }
 
     @Override

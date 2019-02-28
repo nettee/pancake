@@ -5,18 +5,25 @@ import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.AttrType;
 import me.nettee.pancake.core.model.RID;
 import me.nettee.pancake.core.model.StringAttr;
+import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.record.RecordFile;
 import org.junit.*;
 import org.junit.rules.ExpectedException;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.junit.Assert.fail;
 
 public class IndexInsertTest {
 
-    private static final int RECORD_SIZE = 40;
+    private static final int RECORD_SIZE = 320;
 
     private static final Path DATA_FILE = Paths.get("/tmp/ixb.db");
     private static final int INDEX_NO = 0;
@@ -45,57 +52,107 @@ public class IndexInsertTest {
     @After
     public void tearDown() {
         index.close();
-//        Index.destroy(DATA_FILE, INDEX_NO);
+        Index.destroy(DATA_FILE, INDEX_NO);
     }
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
     private void insertEntry(int i) {
-        Attr attr = new StringAttr(String.format("paranoid-android-size040-abcde04-%07d", i));
-        RID rid = new RID(4, i);
+        String template = ":000ABCDEFGHIJKLMNOPQRSTUVWXYZ" // 30
+                + ":030ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":060ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":090ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":120ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":150ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":180ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":210ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":240ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + ":270ABCDEFGHIJKLMNOPQRSTUVWXYZ" // 300
+                + ":123456789"
+                + "---%07d";
+        Attr attr = new StringAttr(String.format(template, i));
+        RID rid = new RID(4, i); // Fake RID
         index.insertEntry(attr, rid);
     }
 
+    // Giving record size = 320, branching factor = 13
+    private static int branchingFactor = (Page.DATA_SIZE - IndexNode.HEADER_SIZE
+                + RECORD_SIZE) / (RECORD_SIZE + 8);
+
+    // A single root node can have at most b-1 keys and values
+    private static int singleRootCapacity = branchingFactor - 1;
+    private static int leafCapacity = branchingFactor - 1;
+
+    private static List<Integer> sampleIndices(int startInclusive, int endExclusive, int n) {
+        List<Integer> indices = IntStream.range(startInclusive, endExclusive)
+                .boxed()
+                .collect(Collectors.toList());
+        Collections.shuffle(indices);
+        return indices.subList(0, n);
+    }
+
+    private static List<Integer> sortedSampleIndices(int startInclusive, int endExclusive, int n) {
+        List<Integer> indices = sampleIndices(startInclusive, endExclusive, n);
+        Collections.sort(indices);
+        return indices;
+    }
+
+    private static List<Integer> sequentialIndices(int startInclusive, int endExclusive) {
+        return IntStream.range(startInclusive, endExclusive)
+                .boxed()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Duplicated keys are not allowed.
+     */
     @Test
-    public void test() {
-        int branchingFactor = 85;
-        int leafCapacity = branchingFactor - 1;
-        int halfCapacity = leafCapacity / 2;
-
-        // Phase 1: insert into one node
-        for (int i = 0; i < leafCapacity; i++) {
-            insertEntry(101 + i);
+    public void insertDuplicate() {
+        List<Integer> indices = sampleIndices(100, 1000, 50);
+        indices.forEach(this::insertEntry);
+        try {
+            insertEntry(indices.get(0));
+            fail("IndexException expected");
+        } catch (IndexException e) {
+            // Expected exception
         }
+    }
 
-        // Phase 2: the first split
-        insertEntry(201);
+    @Test
+    public void insertToSingleRootNode() {
+        List<Integer> indices = sampleIndices(501, 800, leafCapacity);
+        indices.forEach(this::insertEntry);
+//        index.close();
+//        index = Index.open(DATA_FILE, INDEX_NO);
+//        System.out.println(index.dump(true));
+        // TODO assert all keys are ascending
+    }
 
-        // Phase 3: search and insert
-        for (int i = 0; i < halfCapacity - 1; i++) {
-            insertEntry(301 + i);
-        }
-
-        // Phase 4: more splits
-        int base4 = 2000;
-        for (int k = 0; k < 3; k++) {
-            insertEntry(base4 + 100 * k);
-            for (int i = 0; i < halfCapacity - 1; i++) {
-                insertEntry(base4 + 100 * k + 1 + i);
-            }
-        }
-
-        // Phase 5: split middle
-        int base5 = 1000;
-        for (int k = 5; k > 0; k--) {
-            for (int i = 0; i < halfCapacity; i++) {
-                insertEntry(base5 + 100 * k + i);
-            }
-            insertEntry(base5 + 100 * k + 99);
-        }
+    @Test
+    public void splitToTwoLayers() {
+        List<Integer> indices = sampleIndices(501, 800, leafCapacity + 1);
+        indices.forEach(this::insertEntry);
 
         index.close();
         index = Index.open(DATA_FILE, INDEX_NO);
-        System.out.println(index.dump());
+        System.out.println(index.dump(true));
     }
+
+    @Test
+    public void splitOnLeaf() {
+        List<Integer> indices = sampleIndices(1001, 1300, 3 * leafCapacity);
+        indices.forEach(this::insertEntry);
+
+        index.close();
+        index = Index.open(DATA_FILE, INDEX_NO);
+        System.out.println(index.dump(true));
+    }
+
+    @Test
+    public void splitToThreeLayers() {
+        List<Integer> indices = sequentialIndices(1001, 1001 + branchingFactor * leafCapacity);
+        indices.forEach(this::insertEntry);
+    }
+
 }

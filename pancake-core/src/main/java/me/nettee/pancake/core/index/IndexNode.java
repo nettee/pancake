@@ -8,20 +8,33 @@ import java.util.Arrays;
 
 import static com.google.common.base.Preconditions.checkState;
 
+/**
+ * There are two types of index nodes: leaf nodes and non-leaf nodes.
+ * Both types of nodes share the same {@code Header}, but store different
+ * types of data themselves.
+ * <p>
+ * Leaf nodes store keys and values (i.e. RIDs), whereas non-leaf nodes store
+ * keys and pointers. However, the size of a pointer is set to be equal to the
+ * size of an RID. Thus, leaf nodes and non-leaf nodes share the same branching
+ * factor.
+ *
+ */
 public abstract class IndexNode {
 
     static final int HEADER_SIZE = 12;
 
-    protected static class Header {
+    protected static class IndexNodeHeader {
 
         /**
-         * A node has at most N-1 keys (attrs) and N pointers.
+         * N: current size of index node, which should be <= branching factor.
+         * The node now has N-1 keys (attrs) and N pointers.
          */
         int N;
         boolean isRoot;
         boolean isLeaf;
-        short padding = (short) 0xeeee; // TODO for debug
-        int padding2 = 0xeeeeeeee; // TODO for debug
+        // Pad the header to 12 bytes
+        short padding = (short) 0xeeee;
+        int padding2 = 0xeeeeeeee;
 
         void fromByteArray(byte[] src) {
             checkState(src.length == HEADER_SIZE);
@@ -59,18 +72,18 @@ public abstract class IndexNode {
 
     protected Page page;
     protected IndexHeader indexHeader;
-    protected Header pageHeader;
+    protected IndexNodeHeader indexNodeHeader;
 
     protected IndexNode(Page page, IndexHeader indexHeader) {
         this.page = page;
         this.indexHeader = indexHeader;
-        pageHeader = new Header();
+        indexNodeHeader = new IndexNodeHeader();
     }
 
-    protected IndexNode(Page page, IndexHeader indexHeader, Header pageHeader) {
+    protected IndexNode(Page page, IndexHeader indexHeader, IndexNodeHeader indexNodeHeader) {
         this.page = page;
         this.indexHeader = indexHeader;
-        this.pageHeader = pageHeader;
+        this.indexNodeHeader = indexNodeHeader;
     }
 
     public static LeafIndexNode createLeaf(Page page,
@@ -88,25 +101,25 @@ public abstract class IndexNode {
     public static IndexNode open(Page page,
                                  IndexHeader indexHeader) {
 
-        Header pageHeader = readHeaderFromPage(page);
-        if (pageHeader.isLeaf) {
-            return LeafIndexNode.open(page, indexHeader, pageHeader);
+        IndexNodeHeader pageIndexNodeHeader = readHeaderFromPage(page);
+        if (pageIndexNodeHeader.isLeaf) {
+            return LeafIndexNode.open(page, indexHeader, pageIndexNodeHeader);
         } else {
-            return NonLeafIndexNode.open(page, indexHeader, pageHeader);
+            return NonLeafIndexNode.open(page, indexHeader, pageIndexNodeHeader);
         }
     }
 
     protected void init(boolean isRoot, boolean isLeaf) {
-        pageHeader.N = 0;
-        pageHeader.isRoot = isRoot;
-        pageHeader.isLeaf = isLeaf;
+        indexNodeHeader.N = 0;
+        indexNodeHeader.isRoot = isRoot;
+        indexNodeHeader.isLeaf = isLeaf;
     }
 
-    private static Header readHeaderFromPage(Page page) {
-        Header pageHeader = new Header();
+    private static IndexNodeHeader readHeaderFromPage(Page page) {
+        IndexNodeHeader pageIndexNodeHeader = new IndexNodeHeader();
         byte[] headerBytes = Arrays.copyOf(page.getData(), HEADER_SIZE);
-        pageHeader.fromByteArray(headerBytes);
-        return pageHeader;
+        pageIndexNodeHeader.fromByteArray(headerBytes);
+        return pageIndexNodeHeader;
     }
 
     public int getPageNum() {
@@ -114,13 +127,13 @@ public abstract class IndexNode {
     }
 
     boolean isRoot() {
-        return pageHeader.isRoot;
+        return indexNodeHeader.isRoot;
     }
 
     abstract boolean isLeaf();
 
     boolean isEmpty() {
-        return pageHeader.N == 0;
+        return indexNodeHeader.N == 0;
     }
 
     abstract boolean isFull();
@@ -130,7 +143,7 @@ public abstract class IndexNode {
     abstract Attr getFirstAttr();
 
     final void writeToPage() {
-        byte[] headerBytes = pageHeader.toByteArray();
+        byte[] headerBytes = indexNodeHeader.toByteArray();
         System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
 
         writeToPage0();
@@ -149,21 +162,27 @@ public abstract class IndexNode {
                 + indexHeader.pointerLength;
     }
 
-    // For debug only.
-    final String dump() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PrintWriter out = new PrintWriter(baos);
-
-        out.printf("Page[%d] - %s, %s%n", getPageNum(),
-                isRoot() ? "root" : "non-root",
-                isLeaf() ? "leaf" : "non-leaf"
-        );
-
-        dump0(out);
-
-        out.close();
-        return baos.toString();
+    String getNodeTypeString() {
+        if (isRoot() && isLeaf()) {
+            return "Single Root Node (root=true, leaf=true)";
+        } else if (isRoot()) {
+            return "Root Node (root=true, leaf=false)";
+        } else if (isLeaf()) {
+            return "Leaf Node (root=false, leaf=true)";
+        } else {
+            return "Internal Node (root=false, leaf=false)";
+        }
     }
 
-    protected abstract void dump0(PrintWriter out);
+    // For debug only.
+    final void dump(PrintWriter out, boolean verbose) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Page[%d] - ", getPageNum()));
+        sb.append("Node Type: ");
+        sb.append(getNodeTypeString());
+        out.println(sb.toString());
+        dump0(out, verbose);
+    }
+
+    protected abstract void dump0(PrintWriter out, boolean verbose);
 }
