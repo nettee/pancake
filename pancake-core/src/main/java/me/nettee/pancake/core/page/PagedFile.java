@@ -3,18 +3,20 @@ package me.nettee.pancake.core.page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import static com.google.common.base.Preconditions.*;
+import static java.nio.file.StandardOpenOption.*;
 
 /**
  * <b>Paged file</b> is the bottom component of pancake-core. This component
@@ -39,7 +41,7 @@ public class PagedFile {
 
 	private static Logger logger = LoggerFactory.getLogger(PagedFile.class);
 
-	private RandomAccessFile file;
+	private FileChannel file;
 	private int N; // Number of pages
 //	private Map<Integer, Integer> disposedPageIndexes = new HashMap<>();
 	private Deque<Integer> disposedPageNumsStack = new LinkedList<>();
@@ -49,8 +51,8 @@ public class PagedFile {
 	private PagedFile(Path path) {
 		buffer = new PageBuffer(this);
 		try {
-			this.file = new RandomAccessFile(path.toFile(), "rw");
-		} catch (FileNotFoundException e) {
+			this.file = FileChannel.open(path, CREATE, READ, WRITE);
+		} catch (IOException e) {
 			throw new PagedFileException(e);
 		}
 	}
@@ -98,10 +100,10 @@ public class PagedFile {
 	}
 
 	private void loadPages() throws IOException {
-		if (file.length() % Page.PAGE_SIZE != 0) {
+		if (file.size() % Page.PAGE_SIZE != 0) {
 			logger.warn("file length is not dividable by {}", Page.PAGE_SIZE);
 		}
-		N = (int) (file.length() / Page.PAGE_SIZE);
+		N = (int) (file.size() / Page.PAGE_SIZE);
 
 		// Restore the order of disposed pages. Their pageNums are pushed
 		// orderly into the stack.
@@ -110,8 +112,11 @@ public class PagedFile {
 			disposedPageNums[i] = -1;
 		}
 		for (int pageNum = 0; pageNum < N; pageNum++) {
-			file.seek(pageNum * Page.PAGE_SIZE);
-			int actualNum = file.readInt();
+			file.position(pageNum * Page.PAGE_SIZE);
+			ByteBuffer pageNumCopy = ByteBuffer.allocate(4);
+			file.read(pageNumCopy);
+			pageNumCopy.flip();
+			int actualNum = pageNumCopy.asIntBuffer().get(0);
 			if (actualNum < 0) {
 				// A disposed page has its page number less than zero.
                 int disposedOrder = -actualNum;
@@ -168,20 +173,23 @@ public class PagedFile {
 
 	private Page readPageFromFile(int pageNum) throws IOException {
 		Page page = new Page(pageNum);
-		file.seek(pageNum * Page.PAGE_SIZE);
-		file.readInt();
-		file.read(page.data);
+		file.position(pageNum * Page.PAGE_SIZE);
+		ByteBuffer pageCopy = ByteBuffer.allocate(Page.PAGE_SIZE);
+		file.read(pageCopy);
+		pageCopy.position(4);
+		pageCopy.get(page.data);
 		return page;
 	}
 
 	void writePageToFile(Page page) throws IOException {
-		int startPointer = page.num * Page.PAGE_SIZE;
-		int endPointer = (page.num + 1) * Page.PAGE_SIZE;
-		file.seek(startPointer);
-		file.writeInt(page.num);
-		file.write(page.data);
-		checkState(file.getFilePointer() == endPointer,
-				String.format("error state when writing page[%d]", page.num));
+		file.position(page.num * Page.PAGE_SIZE);
+		ByteBuffer out = ByteBuffer.allocate(Page.PAGE_SIZE);
+		out.putInt(page.num);
+		out.put(page.data);
+		out.flip();
+		while (out.hasRemaining()) {
+			file.write(out);
+		}
 	}
 
 	/**
@@ -239,14 +247,19 @@ public class PagedFile {
 			buffer.removeWithoutWriteBack(pageNum); // can throw exception
 		}
 		try {
-			file.seek(pageNum * Page.PAGE_SIZE);
+			file.position(pageNum * Page.PAGE_SIZE);
 			// Write at the pageNum position with the opposite number of the
 			// disposed order, so that (1) we can identify disposed pages with
 			// a negative pageNum; (2) we can restore the disposed order when
 			// re-open the file.
-			file.writeInt(-1 - disposedPageNumsStack.size());
+			ByteBuffer out = ByteBuffer.allocate(Page.PAGE_SIZE);
+			out.putInt(-1 - disposedPageNumsStack.size());
 			// Fill the file with default bytes for ease of debugging.
-			file.write(Pages.makeDefaultBytes(Page.DATA_SIZE));
+			out.put(Pages.makeDefaultBytes(Page.DATA_SIZE));
+			out.flip();
+			while (out.hasRemaining()) {
+				file.write(out);
+			}
 		} catch (IOException e) {
 			String msg = String.format("fail to dispose page[%d]", pageNum);
 			throw new PagedFileException(msg, e);
@@ -292,29 +305,25 @@ public class PagedFile {
 		return page;
 	}
 
-	private Page searchPage(int startPageNum, int endPageNum, UnaryOperator<Integer> next, String messageOnFail) {
+	private Page searchPage(int startPageNum, Predicate<Integer> endPredicate,
+							UnaryOperator<Integer> next, String messageOnFail) {
 		int pageNum = startPageNum;
-		// this loop search all pages except endPage
-		while (pageNum != endPageNum) {
+		while (!endPredicate.test(pageNum)) {
 			if (!isDisposed(pageNum)) {
 				return readPage(pageNum);
 			}
 			pageNum = next.apply(pageNum);
-		}
-		// examine endPage
-		if (!isDisposed(endPageNum)) {
-			return readPage(pageNum);
 		}
 		// no page matches
 		throw new PagedFileException(messageOnFail);
 	}
 
 	private Page searchPageIncreasing(int startPageNum, int endPageNum, String messageOnFail) {
-		return searchPage(startPageNum, endPageNum, (x) -> x + 1, messageOnFail);
+		return searchPage(startPageNum, x -> x > endPageNum, x -> x + 1, messageOnFail);
 	}
 
 	private Page searchPageDecreasing(int startPageNum, int endPageNum, String messageOnFail) {
-		return searchPage(startPageNum, endPageNum, (x) -> x - 1, messageOnFail);
+		return searchPage(startPageNum, x -> x < endPageNum, x -> x - 1, messageOnFail);
 	}
 
 	public Page getFirstPage() {
