@@ -2,7 +2,6 @@ package me.nettee.pancake.core.index;
 
 import me.nettee.pancake.core.model.Attr;
 import me.nettee.pancake.core.model.RID;
-import me.nettee.pancake.core.model.StringAttr;
 import me.nettee.pancake.core.page.Page;
 
 import java.io.PrintWriter;
@@ -23,9 +22,9 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public class LeafIndexNode extends IndexNode {
 
-    private List<Attr> attrs; // size: b-1
-    private List<RID> rids; // size: b-1
-    private NodePointer rightPointer;
+    List<Attr> attrs; // size: b-1
+    List<RID> rids; // size: b-1
+    NodePointer rightPointer;
 
     private LeafIndexNode(Page page, IndexHeader indexHeader) {
         super(page, indexHeader);
@@ -169,6 +168,18 @@ public class LeafIndexNode extends IndexNode {
                     indexHeader.pointerLength);
         }
         // TODO write right pointer
+    }
+
+    void check() {
+        checkState(isLeaf());
+        checkState(!isOverflow());
+        checkState(attrs.size() == indexNodeHeader.N);
+        checkState(rids.size() == indexNodeHeader.N);
+        for (int i = 1; i < attrs.size(); i++) {
+            Attr a1 = attrs.get(i - 1);
+            Attr a2 = attrs.get(i);
+            checkState(a1.compareTo(a2) < 0);
+        }
     }
 
     @Override

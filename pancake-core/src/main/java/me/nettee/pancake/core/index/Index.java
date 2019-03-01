@@ -12,10 +12,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.*;
@@ -26,6 +23,24 @@ import static com.google.common.base.Preconditions.*;
  *
  * We implement the B+ tree data structure. Reference
  * <a href="https://en.wikipedia.org/wiki/B%2B_tree">Wikipedia</a> for terms.
+ * <p>
+ * Split strategy for B+ tree:
+ * Let b = branching factor. A leaf node can have at most b-1 key-value pairs.
+ * A non-leaf node can have at most b pointers (i.e. children) and b-1 keys.
+ * When inserting to a full node, the node overflows, and should split to two
+ * nodes (itself and its sibling), and pull up a key to its parent.
+ * When a leaf node splits, its key-value pairs are divided evenly into two
+ * parts. The node itself keeps the left part, and its new sibling takes the
+ * right part. The node copies the first key of its sibling and pull it up to
+ * the parent node.
+ * When a non-leaf node splits, its pointers are divided evenly into two parts.
+ * The node itself keeps the left part of pointers (and the corresponding keys),
+ * and its new sibling takes the right part of pointers (and the corresponding
+ * keys). However, in this case, one key will have nowhere to place. So the key
+ * will be removed (not copied), and pulled up to the parent node.
+ * For either cases, if the splitting node is root itself, a new root will be
+ * created. The new root will have two children (the splitting node and its
+ * sibling).
  */
 public class Index {
 
@@ -255,7 +270,7 @@ public class Index {
 
     private int bpInsert(int pageNum, Attr attr, RID rid) {
         if (pageNum == IndexHeader.PAGE_NUM_NOT_EXIST) {
-            LeafIndexNode node = createLeafIndexNode();
+            LeafIndexNode node = createLeafIndexNode(true);
             node.insert(attr, rid);
             unpinPage(node); // TODO Where to unpin this?
             return node.getPageNum();
@@ -285,7 +300,7 @@ public class Index {
 
             // Link two leaf nodes to the new root as parent
             node.indexNodeHeader.isRoot = false;
-            NonLeafIndexNode parent = createNonLeafIndexNode();
+            NonLeafIndexNode parent = createNonLeafIndexNode(true);
             parent.addFirstTwoChildren(node, sibling, upKey);
 
             logSplitResult(node, sibling, parent, upKey);
@@ -306,18 +321,18 @@ public class Index {
 
         // Case: an internal node or a leaf node overflows.
         if (child.isOverflow()) {
-            logger.debug("Overflow on node [{}] (child of node [{}]). Split.",
+            logger.debug("Overflow on node ({}) [{}] (child of node [{}]). Split.",
+                    child.isLeaf() ? "leaf node" : "internal node",
                     child.getPageNum(), node.getPageNum());
             // Split the child node
+            // The child node can either be leaf or non-leaf (internal node).
             SplitResult splitResult = split(child);
             IndexNode sibling = splitResult.sibling;
             Attr upKey = splitResult.upKey;
             node.addChild(sibling, upKey);
+            unpinPage(child);
+            unpinPage(sibling);
             logSplitResult(child, sibling, node, upKey);
-        }
-
-        if (node.isOverflow() && !node.isRoot()) {
-            throw new AssertionError();
         }
 
         // Case: the root node (non-leaf) overflows.
@@ -331,7 +346,7 @@ public class Index {
 
             // Link two nodes to the new root as parent
             node.indexNodeHeader.isRoot = false;
-            NonLeafIndexNode parent = createNonLeafIndexNode();
+            NonLeafIndexNode parent = createNonLeafIndexNode(true);
             parent.addFirstTwoChildren(node, sibling, upKey);
 
             logSplitResult(node, sibling, parent, upKey);
@@ -363,19 +378,18 @@ public class Index {
     }
 
     private SplitResult splitLeaf(LeafIndexNode node) {
-        LeafIndexNode sibling = createLeafIndexNode();
+        LeafIndexNode sibling = createLeafIndexNode(false);
         Attr upKey = node.split(sibling);
         return new SplitResult(sibling, upKey);
     }
 
     private SplitResult splitNonLeaf(NonLeafIndexNode node) {
-        NonLeafIndexNode sibling = createNonLeafIndexNode();
+        NonLeafIndexNode sibling = createNonLeafIndexNode(false);
         Attr upKey = node.split(sibling);
         return new SplitResult(sibling, upKey);
     }
 
-    private LeafIndexNode createLeafIndexNode() {
-        boolean isRoot = header.rootPageNum == IndexHeader.PAGE_NUM_NOT_EXIST;
+    private LeafIndexNode createLeafIndexNode(boolean isRoot) {
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
         LeafIndexNode node = IndexNode.createLeaf(page, header, isRoot);
@@ -385,17 +399,17 @@ public class Index {
         return node;
     }
 
-    // TODO control isRoot
-    private NonLeafIndexNode createNonLeafIndexNode() {
+    private NonLeafIndexNode createNonLeafIndexNode(boolean isRoot) {
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);
-        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, true);
+        NonLeafIndexNode node = IndexNode.createNonLeaf(page, header, isRoot);
         header.numPages++;
         buffer.add(node);
         logger.debug("Node [{}] created, node type: {}", node.getPageNum(), node.getNodeTypeString());
         return node;
     }
 
+    // This method will pin the page to buffer
     private IndexNode getIndexNode(int pageNum) {
         if (buffer.contains(pageNum)) {
             IndexNode indexNode = buffer.get(pageNum);
@@ -464,12 +478,52 @@ public class Index {
         pagedFile.unpinPage(indexNode.getPageNum());
     }
 
-    String dump(boolean verbose) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PrintWriter out = new PrintWriter(baos);
+    // For test only
+    void check() {
+        check0();
+    }
+
+    private void check0() {
+        Queue<Integer> queue = new ArrayDeque<>();
+        if (header.rootPageNum != IndexHeader.PAGE_NUM_NOT_EXIST) {
+            queue.add(header.rootPageNum);
+        }
+        // BFS on B+ tree
+        int depth = 0;
+        while (!queue.isEmpty()) {
+            checkState(!queue.isEmpty());
+            IndexNode node0 = getIndexNode(queue.peek());
+            boolean isRoot = node0.isRoot();
+            boolean isLeaf = node0.isLeaf();
+            int size = queue.size();
+            for (int i = 0; i < size; i++) {
+                int pageNum = queue.remove();
+                IndexNode node = getIndexNode(pageNum);
+                checkState(node.isRoot() == isRoot, String.format("Node[%d] root = %b", node.getPageNum(), node.isRoot()));
+                checkState(node.isLeaf() == isLeaf);
+                // Check: there is exactly one root
+                if (node.isRoot()) {
+                    checkState(node.getPageNum() == header.rootPageNum);
+                }
+                node.check();
+                if (!node.isLeaf()) {
+                    NonLeafIndexNode nonLeafIndexNode = (NonLeafIndexNode) node;
+                    for (NodePointer pointer : nonLeafIndexNode.pointers) {
+                        int childPageNum = pointer.getPageNum();
+                        queue.add(childPageNum);
+                    }
+                }
+                unpinPage(node);
+            }
+            depth++;
+        }
+    }
+
+    // For debug only
+    void dump(boolean verbose) {
+        PrintWriter out = new PrintWriter(System.out);
 
         out.println("=============================");
-
         out.printf("Index file: %s%n", indexFile.toAbsolutePath().toString());
         out.printf("Number of pages: %d%n", pagedFile.getNumOfPages());
 
@@ -483,8 +537,6 @@ public class Index {
         }
 
         out.println("=============================");
-
-        out.close();
-        return baos.toString();
+        out.flush();
     }
 }

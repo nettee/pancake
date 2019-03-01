@@ -19,8 +19,8 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public class NonLeafIndexNode extends IndexNode {
 
-    private List<Attr> keys; // size: b-1
-    private List<NodePointer> pointers; // size: b
+    List<Attr> keys; // size: b-1
+    List<NodePointer> pointers; // size: b
 
     private NonLeafIndexNode(Page page, IndexHeader indexHeader) {
         super(page, indexHeader);
@@ -73,6 +73,7 @@ public class NonLeafIndexNode extends IndexNode {
 
     int findChild(Attr key) {
         checkState(!isEmpty());
+        // TODO use binary search
         for (int i = 0; i < keys.size(); i++) {
             if (key.compareTo(keys.get(i)) < 0) {
                 return pointers.get(i).getPageNum();
@@ -162,6 +163,18 @@ public class NonLeafIndexNode extends IndexNode {
             System.arraycopy(pointerBytes, 0,
                     page.getData(), pointerPos(i),
                     indexHeader.pointerLength);
+        }
+    }
+
+    void check() {
+        checkState(!isLeaf());
+        checkState(!isOverflow());
+        checkState(pointers.size() == indexNodeHeader.N);
+        checkState(keys.size() == indexNodeHeader.N - 1);
+        for (int i = 1; i < keys.size(); i++) {
+            Attr a1 = keys.get(i - 1);
+            Attr a2 = keys.get(i);
+            checkState(a1.compareTo(a2) < 0);
         }
     }
 

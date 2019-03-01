@@ -186,6 +186,8 @@ public abstract class IndexNode {
         }
     }
 
+    abstract void check();
+
     // For debug only.
     final void dump(PrintWriter out, boolean verbose) {
         String s = String.format("Page[%d] - Node Type: %s",
