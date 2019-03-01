@@ -87,23 +87,32 @@ public class LeafIndexNode extends IndexNode {
         indexNodeHeader.N++;
     }
 
-    void split(LeafIndexNode sibling) {
+    Attr split(LeafIndexNode sibling) {
         checkState(isOverflow());
         checkState(attrs.size() == rids.size());
+
+//        System.out.printf("Split leaf node [%d] with sibling [%d]\n",
+//                getPageNum(), sibling.getPageNum());
+
         int curSize = attrs.size();
         int newSize = curSize / 2;
 
         // Move the last half to sibling
         sibling.attrs.addAll(attrs.subList(newSize, curSize));
-        sibling.rids.addAll(rids.subList(newSize, curSize));
-
         attrs.subList(newSize, curSize).clear();
+        Attr upKey = sibling.attrs.get(0);
+
+//        System.out.printf("Up key: %s\n", upKey.toSimplifiedString());
+
+        sibling.rids.addAll(rids.subList(newSize, curSize));
         rids.subList(newSize, curSize).clear();
 
-        indexNodeHeader.N = newSize;
-        sibling.indexNodeHeader.N = curSize - newSize;
+        indexNodeHeader.N = attrs.size();
+        sibling.indexNodeHeader.N = sibling.attrs.size();
 
         // TODO Set right pointer
+
+        return upKey;
     }
 
     @Override

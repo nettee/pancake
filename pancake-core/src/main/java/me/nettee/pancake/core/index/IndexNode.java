@@ -27,7 +27,8 @@ public abstract class IndexNode {
 
         /**
          * N: current size of index node, which should be <= branching factor.
-         * The node now has N-1 keys (attrs) and N pointers.
+         * A non-leaf node has N-1 keys (attrs) and N pointers.
+         * A leaf node has N keys (attrs) and N values (RIDs).
          */
         int N;
         boolean isRoot;
@@ -142,6 +143,17 @@ public abstract class IndexNode {
 
     abstract Attr getFirstAttr();
 
+    static class SplitResult {
+
+        final IndexNode sibling;
+        final Attr upKey;
+
+        SplitResult(IndexNode sibling, Attr upKey) {
+            this.sibling = sibling;
+            this.upKey = upKey;
+        }
+    }
+
     final void writeToPage() {
         byte[] headerBytes = indexNodeHeader.toByteArray();
         System.arraycopy(headerBytes, 0, page.getData(), 0, HEADER_SIZE);
@@ -176,11 +188,9 @@ public abstract class IndexNode {
 
     // For debug only.
     final void dump(PrintWriter out, boolean verbose) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Page[%d] - ", getPageNum()));
-        sb.append("Node Type: ");
-        sb.append(getNodeTypeString());
-        out.println(sb.toString());
+        String s = String.format("Page[%d] - Node Type: %s",
+                getPageNum(), getNodeTypeString());
+        out.println(s);
         dump0(out, verbose);
     }
 

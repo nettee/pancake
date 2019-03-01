@@ -120,7 +120,7 @@ public class IndexInsertTest {
     }
 
     @Test
-    public void insertToSingleRootNode() {
+    public void fillSingleRootNode() {
         List<Integer> indices = sampleIndices(501, 800, leafCapacity);
         indices.forEach(this::insertEntry);
 //        index.close();
@@ -150,9 +150,22 @@ public class IndexInsertTest {
     }
 
     @Test
-    public void splitToThreeLayers() {
-        List<Integer> indices = sequentialIndices(1001, 1001 + branchingFactor * leafCapacity);
+    public void fillRootNode() {
+        List<Integer> indices = sequentialIndices(1001, 1085);
         indices.forEach(this::insertEntry);
+        index.close();
+        index = Index.open(DATA_FILE, INDEX_NO);
+        System.out.println(index.dump(true));
+    }
+
+    // The first time to split non-leaf nodes
+    @Test
+    public void splitToThreeLayers() {
+        List<Integer> indices = sequentialIndices(1001, 1086);
+        indices.forEach(this::insertEntry);
+        index.close();
+        index = Index.open(DATA_FILE, INDEX_NO);
+        System.out.println(index.dump(true));
     }
 
 }

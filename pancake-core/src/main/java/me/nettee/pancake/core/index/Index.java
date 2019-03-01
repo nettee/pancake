@@ -1,5 +1,6 @@
 package me.nettee.pancake.core.index;
 
+import me.nettee.pancake.core.index.IndexNode.SplitResult;
 import me.nettee.pancake.core.model.*;
 import me.nettee.pancake.core.page.Page;
 import me.nettee.pancake.core.page.PagedFile;
@@ -189,6 +190,7 @@ public class Index {
      * Close the {@code Index} object.
      */
     public void close() {
+        checkState(open, "Index already closed");
         logger.info("Closing Index");
 
         writeHeaderToFile();
@@ -209,6 +211,9 @@ public class Index {
 
     private void writeDataPagesToFile() {
         for (IndexNode indexNode : buffer.nodes()) {
+            if (indexNode.isOverflow()) {
+                throw new IllegalStateException(String.format("Node [%d] overflows", indexNode.getPageNum()));
+            }
             touch(indexNode);
             markDirty(indexNode);
             indexNode.writeToPage();
@@ -274,15 +279,16 @@ public class Index {
         if (node.isRoot() && node.isOverflow()) {
             logger.debug("Overflow on node [{}] (single root node). Split.", node.getPageNum());
             // Split the root node
-            LeafIndexNode sibling = splitLeaf(node);
-            node.indexNodeHeader.isRoot = false;
-            // Link to leaf nodes to parent (the new root)
-            NonLeafIndexNode parent = createNonLeafIndexNode();
-            parent.addFirstTwoChildren(node, sibling);
+            SplitResult splitResult = splitLeaf(node);
+            LeafIndexNode sibling = (LeafIndexNode) splitResult.sibling;
+            Attr upKey = splitResult.upKey;
 
-            logger.debug("Split result: [{}] => [{}][{}], parent = [{}]",
-                    node.getPageNum(), node.getPageNum(),
-                    sibling.getPageNum(), parent.getPageNum());
+            // Link two leaf nodes to the new root as parent
+            node.indexNodeHeader.isRoot = false;
+            NonLeafIndexNode parent = createNonLeafIndexNode();
+            parent.addFirstTwoChildren(node, sibling, upKey);
+
+            logSplitResult(node, sibling, parent, upKey);
             unpinPage(node);
             unpinPage(sibling);
             unpinPage(parent);
@@ -298,27 +304,57 @@ public class Index {
         bpInsert(childPageNum, attr, rid);
         IndexNode child = getIndexNode(childPageNum);
 
+        // Case: an internal node or a leaf node overflows.
         if (child.isOverflow()) {
             logger.debug("Overflow on node [{}] (child of node [{}]). Split.",
                     child.getPageNum(), node.getPageNum());
             // Split the child node
-            IndexNode sibling = split(child);
-            node.addChild(sibling);
-            logger.debug("Split result: [{}] => [{}][{}], parent = [{}]",
-                    child.getPageNum(), child.getPageNum(),
-                    sibling.getPageNum(), node.getPageNum());
+            SplitResult splitResult = split(child);
+            IndexNode sibling = splitResult.sibling;
+            Attr upKey = splitResult.upKey;
+            node.addChild(sibling, upKey);
+            logSplitResult(child, sibling, node, upKey);
         }
 
-        if (node.isRoot() && node.isOverflow()) {
-            // TODO
+        if (node.isOverflow() && !node.isRoot()) {
             throw new AssertionError();
+        }
+
+        // Case: the root node (non-leaf) overflows.
+        // Note: the order of two overflow handling if-blocks CANNOT be switched!
+        if (node.isOverflow() && node.isRoot()) {
+            logger.debug("Overflow on node [{}] (root node). Split.", node.getPageNum());
+            // Split the root node
+            SplitResult splitResult = splitNonLeaf(node);
+            NonLeafIndexNode sibling = (NonLeafIndexNode) splitResult.sibling;
+            Attr upKey = splitResult.upKey;
+
+            // Link two nodes to the new root as parent
+            node.indexNodeHeader.isRoot = false;
+            NonLeafIndexNode parent = createNonLeafIndexNode();
+            parent.addFirstTwoChildren(node, sibling, upKey);
+
+            logSplitResult(node, sibling, parent, upKey);
+            unpinPage(node);
+            unpinPage(sibling);
+            unpinPage(parent);
+            return parent.getPageNum();
         }
 
         unpinPage(node);
         return node.getPageNum();
     }
 
-    private IndexNode split(IndexNode node) {
+    private static void logSplitResult(IndexNode node, IndexNode sibling, IndexNode parent, Attr upKey) {
+        logger.debug("Split result: [{}] => [{}] {} [{}], parent = [{}]",
+                node.getPageNum(),
+                node.getPageNum(),
+                upKey.toSimplifiedString(),
+                sibling.getPageNum(),
+                parent.getPageNum());
+    }
+
+    private SplitResult split(IndexNode node) {
         if (node.isLeaf()) {
             return splitLeaf((LeafIndexNode) node);
         } else {
@@ -326,16 +362,16 @@ public class Index {
         }
     }
 
-    private LeafIndexNode splitLeaf(LeafIndexNode node) {
+    private SplitResult splitLeaf(LeafIndexNode node) {
         LeafIndexNode sibling = createLeafIndexNode();
-        node.split(sibling);
-        return sibling;
+        Attr upKey = node.split(sibling);
+        return new SplitResult(sibling, upKey);
     }
 
-    private NonLeafIndexNode splitNonLeaf(NonLeafIndexNode node) {
+    private SplitResult splitNonLeaf(NonLeafIndexNode node) {
         NonLeafIndexNode sibling = createNonLeafIndexNode();
-        node.split(sibling);
-        return sibling;
+        Attr upKey = node.split(sibling);
+        return new SplitResult(sibling, upKey);
     }
 
     private LeafIndexNode createLeafIndexNode() {
@@ -349,6 +385,7 @@ public class Index {
         return node;
     }
 
+    // TODO control isRoot
     private NonLeafIndexNode createNonLeafIndexNode() {
         Page page = pagedFile.allocatePage();
         pagedFile.markDirty(page);

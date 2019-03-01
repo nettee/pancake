@@ -53,21 +53,20 @@ public class NonLeafIndexNode extends IndexNode {
         readFromPage();
     }
 
-    void addFirstTwoChildren(IndexNode first, IndexNode second) {
+    void addFirstTwoChildren(IndexNode first, IndexNode second, Attr upKey) {
         checkState(isEmpty());
-        keys.add(second.getFirstAttr());
+        keys.add(upKey);
         pointers.add(new NodePointer(first.getPageNum()));
         pointers.add(new NodePointer(second.getPageNum()));
         indexNodeHeader.N = 2;
     }
 
-    void addChild(IndexNode node) {
+    void addChild(IndexNode node, Attr upKey) {
         checkState(!isEmpty());
-        Attr key = node.getFirstAttr();
         NodePointer pointer = new NodePointer(node.getPageNum());
-        int c = Collections.binarySearch(keys, key);
+        int c = Collections.binarySearch(keys, upKey);
         int i = c >= 0 ? c : -c - 1; // Insertion point
-        keys.add(i, key);
+        keys.add(i, upKey);
         pointers.add(i + 1, pointer);
         indexNodeHeader.N++;
     }
@@ -83,8 +82,36 @@ public class NonLeafIndexNode extends IndexNode {
         return pointers.get(keys.size()).getPageNum();
     }
 
-    void split(NonLeafIndexNode sibling) {
-        throw new AssertionError();
+    Attr split(NonLeafIndexNode sibling) {
+        checkState(isOverflow());
+        checkState(keys.size() == pointers.size() - 1);
+
+//        System.out.printf("Split non-leaf node [%d] with sibling [%d]\n",
+//                getPageNum(), sibling.getPageNum());
+
+        int curSize = pointers.size();
+        int newSize = curSize / 2;
+
+        // Keep pointers [0, newSize),
+        // move pointers [newSize, curSize) to sibling.
+        // Keep keys [0, newSize-1),
+        // move keys [newSize, curSize-1) to sibling.
+        // Pull key[newSize-1] up.
+
+        sibling.pointers.addAll(pointers.subList(newSize, curSize));
+        pointers.subList(newSize, curSize).clear();
+
+        sibling.keys.addAll(keys.subList(newSize, curSize-1));
+        keys.subList(newSize, curSize-1).clear();
+
+        Attr upKey = keys.remove(newSize - 1);
+
+        indexNodeHeader.N = pointers.size();
+        sibling.indexNodeHeader.N = sibling.pointers.size();
+
+//        System.out.printf("Up key %s\n", upKey.toSimplifiedString());
+
+        return upKey;
     }
 
     @Override
