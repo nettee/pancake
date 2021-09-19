@@ -1,0 +1,3 @@
+rootProject.name = 'pancake'
+
+include 'pancake-core', 'pancake-cli'
