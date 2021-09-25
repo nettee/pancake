@@ -8,6 +8,10 @@ const (
 )
 
 const (
+	disposedPageNum = -1
+)
+
+const (
 	defaultByte byte = 0xee
 )
 

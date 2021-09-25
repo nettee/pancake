@@ -35,7 +35,7 @@ func TestPagedFile_AllocatePage(t *testing.T) {
 		t.Error(err)
 	}
 	for i := 0; i < 10; i++ {
-		page, err := pagedFile.GetPage(i)
+		page, err := pagedFile.GetPage(int32(i))
 		if err != nil {
 			t.Error(err)
 		}
@@ -55,24 +55,24 @@ func TestPagedFile_DisposePage(t *testing.T) {
 		t.Error(err)
 	}
 	for i := 0; i < 10; i++ {
-		page, err := pagedFile.GetPage(i)
+		pageNum := int32(i)
+		page, err := pagedFile.GetPage(pageNum)
 		if err != nil {
 			t.Error(err)
 		}
 		assert.Equal(t, i, int(page.num))
 	}
 
-	err = pagedFile.DisposePage(1)
-	if err != nil {
-		t.Error(err)
-	}
-	err = pagedFile.DisposePage(3)
-	if err != nil {
-		t.Error(err)
-	}
-	err = pagedFile.DisposePage(5)
-	if err != nil {
-		t.Error(err)
+	for _, i := range []int{1, 3, 5} {
+		pageNum := int32(i)
+		err := pagedFile.UnpinPage(pageNum)
+		if err != nil {
+			t.Error(err)
+		}
+		err = pagedFile.DisposePage(pageNum)
+		if err != nil {
+			t.Error(err)
+		}
 	}
 
 	debugPagedFile(pagedFile)
