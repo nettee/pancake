@@ -1,7 +1,6 @@
 package page
 
 import (
-	"encoding/binary"
 	"fmt"
 	"os"
 
@@ -28,8 +27,7 @@ type PagedFile interface {
 }
 
 type pagedFile struct {
-	// The read-write data file
-	file *os.File
+	file lowLevelFile
 
 	// number of pages
 	n int
@@ -77,7 +75,7 @@ func newPagedFile(file *os.File, size int64) *pagedFile {
 		// warn: file length is not dividable by page size
 	}
 	return &pagedFile{
-		file: file,
+		file: lowLevelFile{file},
 		n:    int(size / pageSize),
 	}
 }
@@ -99,7 +97,7 @@ func (f *pagedFile) AllocatePage() (*Page, error) {
 	pageNum := f.n
 	f.n++
 	page := newPageWithDefaultBytes(pageNum)
-	err := f.writePageToFile(pageNum, page)
+	err := f.file.writePageToFile(pageNum, page)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +110,7 @@ func (f *pagedFile) DisposePage(pageNum int) error {
 	// TODO buffer
 
 	page := newPageWithDefaultBytes(-1)
-	err := f.writePageToFile(pageNum, page)
+	err := f.file.writePageToFile(pageNum, page)
 	if err != nil {
 		return err
 	}
@@ -121,49 +119,11 @@ func (f *pagedFile) DisposePage(pageNum int) error {
 
 func (f *pagedFile) GetPage(pageNum int) (*Page, error) {
 	// TODO buffer
-	return f.readPageFromFile(pageNum)
+	return f.file.readPageFromFile(pageNum)
 }
 
 func (f *pagedFile) Size() int {
 	return f.n
-}
-
-func (f *pagedFile) readPageFromFile(position int) (*Page, error) {
-	err := f.seekToPosition(position)
-	if err != nil {
-		return nil, err
-	}
-	page := Page{}
-	err = binary.Read(f.file, binary.LittleEndian, &page.num)
-	if err != nil {
-		return nil, err
-	}
-	_, err = f.file.Read(page.data[:])
-	if err != nil {
-		return nil, err
-	}
-	return &page, nil
-}
-
-func (f *pagedFile) writePageToFile(position int, page *Page) error {
-	err := f.seekToPosition(position)
-	if err != nil {
-		return err
-	}
-	err = binary.Write(f.file, binary.LittleEndian, page.num)
-	if err != nil {
-		return err
-	}
-	_, err = f.file.Write(page.data[:])
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (f *pagedFile) seekToPosition(position int) error {
-	_, err := f.file.Seek(int64(position*pageSize), 0)
-	return err
 }
 
 // For debug only.
