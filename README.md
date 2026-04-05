@@ -1,12 +1,18 @@
 # Pancake
 
-`pancake` is an experimental Rust rewrite of the RedBase project from Stanford CS346.
+`pancake` is a deliberately minimal Rust scaffold inspired by the RedBase project structure.
 
-The project has not started implementation yet. The current goal is to define the direction, constraints, and evolution path before building the code incrementally.
+The codebase is kept intentionally sparse so it can compile cleanly without committing to premature database APIs or ownership models.
 
-## Goals
+## Current scaffold
 
-- Rebuild a teaching-oriented relational database system using the RedBase project structure as the reference point
-- Re-examine internal database module boundaries, abstractions, and error handling through Rust
-- Use this repository as a playground for Rust language features, including ownership, lifetimes, traits, concurrency, and memory safety
-- Explore the strengths and limits of AI coding in a systems project
+- Rust 2024 edition
+- Stable toolchain friendly
+- Small set of low-level shared primitives in `common`
+- Sparse placeholder modules: `pf`, `buffer`, `rm`, `ix`, `sm`, `ql`
+
+## Guiding principle
+
+- Prefer neutral placeholders over speculative interfaces
+- Keep modules present, but avoid shaping future architecture too early
+- Add only primitives that are clearly justified by the current scaffold
