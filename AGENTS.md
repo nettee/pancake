@@ -10,3 +10,9 @@
 
 - Use `main` as the default base branch.
 - Submit all pull requests against `main` unless explicitly instructed otherwise.
+
+## Engineering Workflow
+
+- Use TDD from the start for all non-trivial implementation work.
+- Every implementation change must be written together with tests; do not land logic without corresponding tests.
+- Prefer small red-green-refactor steps, especially for storage and API boundary code.
