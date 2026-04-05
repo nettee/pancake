@@ -155,10 +155,10 @@ created: '2026-04-05'
 
 ## Plan
 
-- [ ] Phase 1: 建立 PF 最小可测切片
-  - [ ] 为 file lifecycle 编写失败/成功测试
-  - [ ] 实现 `PfManager::{create_file, destroy_file, open_file}`
-  - [ ] 为单页分配与基本读写补测试并实现
+- [x] Phase 1: 建立 PF 最小可测切片
+  - [x] 为 file lifecycle 编写失败/成功测试
+  - [x] 实现 `PfManager::{create_file, destroy_file, open_file}`
+  - [x] 为单页分配与基本读写补测试并实现
 - [ ] Phase 2: 扩展页语义
   - [ ] 为 forward scan 编写测试并实现 `first_page_id` / `next_page_id`
   - [ ] 为 `dispose_page` + LIFO 复用编写测试并实现
@@ -172,3 +172,19 @@ created: '2026-04-05'
 
 - 当前讨论已经完成代码库调研，并形成了明确的 API/分层/测试顺序建议，因此 spec 适合直接进入 `designed`。
 - 第一实现切片优先考虑正确性和 API 边界，不要求一次性覆盖 PF 全部高级能力。
+
+### Implementation
+
+- `src/pf/mod.rs` — 作为 PF 模块入口，集中导出 public API、错误类型与共享常量。
+- `src/pf/manager.rs` — 放置 `PfManager` 的 create/open/destroy 文件生命周期逻辑。
+- `src/pf/file.rs`、`src/pf/header.rs`、`src/pf/page.rs` — 分离 `PfFile`、磁盘头格式、page guards 与页级 I/O helper，避免 PF 后续继续堆积在单文件中。
+- `src/pf/tests.rs` — 保留模块内单元测试，但与实现代码分文件，便于继续按 TDD 扩展 Phase 2/3。
+- 在编码阶段额外决定第一版采用 direct file-backed guard 模型，由 `WritePageGuard` drop 时写回脏页，先不引入 buffer pool/LRU，以保持 Phase 1 简洁可测。
+- 为避免 `flush_all` 与存活中的写 guard 产生“看似已 flush、实际未持久化”的语义歧义，当前实现明确让 `flush_all` 在存在 live `WritePageGuard` 时返回错误。
+- 偏离原设计的一点是当前实现暂时复用 `common::PAGE_SIZE = 4096` 作为页大小，而不是单独落地 `PF_PAGE_SIZE = 4092`；这样能先完成最小切片，后续在 buffer/page format 深化阶段再对齐 RedBase 常量语义。
+
+### Verification
+
+- 新增 8 个 `src/pf.rs` 单元测试，覆盖 file lifecycle 成功/失败、无效文件校验、单页分配零初始化、写入后 flush + reopen 持久化，以及 live write guard 存在时 `flush_all` 的失败语义。
+- 执行 `cargo test`，结果通过（8 passed, 0 failed）。
+- 当前已验证 direct file-backed Phase 1 语义；forward scan、dispose/LIFO、pin/unpin、eviction/LRU 仍待后续阶段完成。
