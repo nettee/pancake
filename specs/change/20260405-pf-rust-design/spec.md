@@ -1,7 +1,7 @@
 ---
 id: 20260405-pf-rust-design
 name: Pf Rust Design
-status: designed
+status: implemented
 created: '2026-04-05'
 ---
 
@@ -159,10 +159,10 @@ created: '2026-04-05'
   - [x] 为 file lifecycle 编写失败/成功测试
   - [x] 实现 `PfManager::{create_file, destroy_file, open_file}`
   - [x] 为单页分配与基本读写补测试并实现
-- [ ] Phase 2: 扩展页语义
-  - [ ] 为 forward scan 编写测试并实现 `first_page_id` / `next_page_id`
-  - [ ] 为 `dispose_page` + LIFO 复用编写测试并实现
-  - [ ] 引入 page guards 并用测试固定 pin/unpin 语义
+- [x] Phase 2: 扩展页语义
+  - [x] 为 forward scan 编写测试并实现 `first_page_id` / `next_page_id`
+  - [x] 为 `dispose_page` + LIFO 复用编写测试并实现
+  - [x] 引入 page guards 并用测试固定 pin/unpin 语义
 - [ ] Phase 3: 完成 buffer/flush 行为
   - [ ] 为 dirty flush 编写测试并实现
   - [ ] 在小 buffer 场景下为 eviction/LRU 编写测试并实现
@@ -175,16 +175,18 @@ created: '2026-04-05'
 
 ### Implementation
 
-- `src/pf/mod.rs` — 作为 PF 模块入口，集中导出 public API、错误类型与共享常量。
-- `src/pf/manager.rs` — 放置 `PfManager` 的 create/open/destroy 文件生命周期逻辑。
-- `src/pf/file.rs`、`src/pf/header.rs`、`src/pf/page.rs` — 分离 `PfFile`、磁盘头格式、page guards 与页级 I/O helper，避免 PF 后续继续堆积在单文件中。
-- `src/pf/tests.rs` — 保留模块内单元测试，但与实现代码分文件，便于继续按 TDD 扩展 Phase 2/3。
-- 在编码阶段额外决定第一版采用 direct file-backed guard 模型，由 `WritePageGuard` drop 时写回脏页，先不引入 buffer pool/LRU，以保持 Phase 1 简洁可测。
-- 为避免 `flush_all` 与存活中的写 guard 产生“看似已 flush、实际未持久化”的语义歧义，当前实现明确让 `flush_all` 在存在 live `WritePageGuard` 时返回错误。
-- 偏离原设计的一点是当前实现暂时复用 `common::PAGE_SIZE = 4096` 作为页大小，而不是单独落地 `PF_PAGE_SIZE = 4092`；这样能先完成最小切片，后续在 buffer/page format 深化阶段再对齐 RedBase 常量语义。
+- `src/pf/mod.rs` — added `PagePinned` and `EndOfFile` errors for scan and guard-conflict semantics.
+- `src/pf/manager.rs` — initializes opened PF files with in-memory pin tracking state.
+- `src/pf/header.rs` — persists and validates the on-disk free-list head.
+- `src/pf/file.rs` — implements `first_page_id` / `next_page_id`, `dispose_page`, LIFO page reuse, and same-page guard conflict checks.
+- `src/pf/page.rs` — makes read/write guards release pin state on drop and keeps dirty write-back fail-loud.
+- `src/pf/tests.rs` — adds Phase 2 coverage for forward scan, dispose/LIFO reuse, dispose-vs-pin behavior, and incompatible same-page guards.
+- Coding-time decision: in the current direct file-backed model, multiple read guards may coexist, but read/write and write/write overlap on the same page are rejected to avoid divergent owned page buffers.
+- Deviation from the long-term design: this phase still uses direct file-backed guards instead of a real buffer pool/LRU, and still keeps `PF_PAGE_SIZE` aligned with `common::PAGE_SIZE = 4096` for now.
 
 ### Verification
 
-- 新增 8 个 `src/pf.rs` 单元测试，覆盖 file lifecycle 成功/失败、无效文件校验、单页分配零初始化、写入后 flush + reopen 持久化，以及 live write guard 存在时 `flush_all` 的失败语义。
-- 执行 `cargo test`，结果通过（8 passed, 0 failed）。
-- 当前已验证 direct file-backed Phase 1 语义；forward scan、dispose/LIFO、pin/unpin、eviction/LRU 仍待后续阶段完成。
+- 新增 4 个 Phase 2 PF 单元测试；当前 PF 单元测试共 12 个，`cargo test` 结果为 12 passed, 0 failed。
+- 执行 `cargo test`，结果通过（12 passed, 0 failed）。
+- 手动验证了 forward scan 会跳过 disposed pages，且重新分配优先复用最近释放的页号。
+- 当前已知限制：buffer pool/LRU、dirty eviction，以及更完整的 flush/eviction 语义仍留待 Phase 3。

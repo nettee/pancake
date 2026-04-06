@@ -130,6 +130,129 @@ fn write_page_persists_across_reopen() {
 }
 
 #[test]
+fn forward_scan_skips_disposed_pages() {
+    let mgr = PfManager::new();
+    let path = temp_path("forward_scan");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let first = file.allocate_page().expect("allocate first");
+    let middle = file.allocate_page().expect("allocate middle");
+    let last = file.allocate_page().expect("allocate last");
+
+    assert_eq!(first, 0);
+    assert_eq!(middle, 1);
+    assert_eq!(last, 2);
+
+    file.dispose_page(middle).expect("dispose middle");
+
+    assert_eq!(file.first_page_id().expect("first page"), first);
+    assert_eq!(file.next_page_id(first).expect("next page"), last);
+    let err = file.next_page_id(last).expect_err("scan should end");
+    assert!(matches!(err, PfError::EndOfFile));
+
+    drop(file);
+    cleanup(&path);
+}
+
+#[test]
+fn dispose_page_reuses_lifo_order() {
+    let mgr = PfManager::new();
+    let path = temp_path("dispose_lifo");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let first = file.allocate_page().expect("allocate first");
+    let second = file.allocate_page().expect("allocate second");
+    let third = file.allocate_page().expect("allocate third");
+
+    file.dispose_page(second).expect("dispose second");
+    file.dispose_page(third).expect("dispose third");
+
+    let reused_first = file.allocate_page().expect("reuse most recent");
+    let reused_second = file.allocate_page().expect("reuse next");
+
+    assert_eq!(reused_first, third);
+    assert_eq!(reused_second, second);
+
+    let page = file.get_page(reused_first).expect("read reused page");
+    assert!(page.data().iter().all(|&byte| byte == 0));
+
+    assert_eq!(first, 0);
+    drop(page);
+    drop(file);
+    cleanup(&path);
+}
+
+#[test]
+fn live_page_guard_blocks_dispose_until_drop() {
+    let mgr = PfManager::new();
+    let path = temp_path("guard_pin");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let page_id = file.allocate_page().expect("allocate page");
+    let guard = file.get_page(page_id).expect("get page");
+
+    let err = file
+        .dispose_page(page_id)
+        .expect_err("dispose should fail while pinned");
+    assert!(matches!(err, PfError::PagePinned));
+
+    drop(guard);
+    file.dispose_page(page_id).expect("dispose after drop");
+
+    drop(file);
+    cleanup(&path);
+}
+
+#[test]
+fn incompatible_page_guards_are_rejected_but_multiple_reads_are_allowed() {
+    let mgr = PfManager::new();
+    let path = temp_path("guard_aliasing");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let page_id = file.allocate_page().expect("allocate page");
+
+    let read_guard = file.get_page(page_id).expect("get read guard");
+    let second_read_guard = file.get_page(page_id).expect("get second read guard");
+    assert_eq!(read_guard.data(), second_read_guard.data());
+
+    let err = file
+        .get_page_mut(page_id)
+        .expect_err("write guard should be rejected while reads are live");
+    assert!(matches!(err, PfError::PagePinned));
+
+    drop(second_read_guard);
+    drop(read_guard);
+
+    let write_guard = file.get_page_mut(page_id).expect("get write guard");
+
+    let err = file
+        .get_page(page_id)
+        .expect_err("read guard should be rejected while write is live");
+    assert!(matches!(err, PfError::PagePinned));
+
+    let err = file
+        .get_page_mut(page_id)
+        .expect_err("second write guard should be rejected while write is live");
+    assert!(matches!(err, PfError::PagePinned));
+
+    drop(write_guard);
+    drop(file);
+    cleanup(&path);
+}
+
+#[test]
 fn flush_all_rejects_live_write_guard() {
     let mgr = PfManager::new();
     let path = temp_path("flush_live_guard");

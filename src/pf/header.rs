@@ -1,7 +1,7 @@
 use super::{
-    read_u32_le, write_u32_into, PfError, Result, HEADER_FREE_LIST_OFFSET, HEADER_MAGIC_OFFSET,
-    HEADER_PAGE_COUNT_OFFSET, HEADER_PAGE_SIZE_OFFSET, HEADER_VERSION_OFFSET, PF_HEADER_SIZE,
-    PF_MAGIC, PF_PAGE_SIZE, PF_VERSION,
+    HEADER_FREE_LIST_OFFSET, HEADER_MAGIC_OFFSET, HEADER_PAGE_COUNT_OFFSET,
+    HEADER_PAGE_SIZE_OFFSET, HEADER_VERSION_OFFSET, PF_HEADER_SIZE, PF_MAGIC, PF_PAGE_SIZE,
+    PF_VERSION, PfError, Result, read_u32_le, write_u32_into,
 };
 use crate::common::PageId;
 use std::fs::File;
@@ -11,11 +11,15 @@ use std::io::{Read, Seek, SeekFrom, Write};
 pub(crate) struct FileHeader {
     // Number of currently allocated data pages in the file.
     pub(crate) page_count: PageId,
+    pub(crate) free_list: PageId,
 }
 
 impl FileHeader {
     pub(crate) fn new() -> Self {
-        Self { page_count: 0 }
+        Self {
+            page_count: 0,
+            free_list: super::INVALID_PAGE_ID,
+        }
     }
 
     pub(crate) fn encode(&self) -> [u8; PF_HEADER_SIZE] {
@@ -29,7 +33,7 @@ impl FileHeader {
             .expect("header page size write");
         write_u32_into(&mut bytes, HEADER_PAGE_COUNT_OFFSET, self.page_count)
             .expect("header page count write");
-        write_u32_into(&mut bytes, HEADER_FREE_LIST_OFFSET, super::INVALID_PAGE_ID)
+        write_u32_into(&mut bytes, HEADER_FREE_LIST_OFFSET, self.free_list)
             .expect("header free list write");
         bytes
     }
@@ -54,14 +58,19 @@ impl FileHeader {
             return Err(PfError::InvalidFile);
         }
 
-        // Phase 1 only consumes page_count, but it still validates the free-list
-        // field so later phases can extend the header without changing the file
-        // validation path.
+        // The header is validated explicitly as bytes so the persistent format
+        // stays deterministic and future metadata changes remain local here.
         let page_count =
             read_u32_le(&bytes, HEADER_PAGE_COUNT_OFFSET).map_err(|_| PfError::InvalidFile)?;
-        let _free_list =
+        let free_list =
             read_u32_le(&bytes, HEADER_FREE_LIST_OFFSET).map_err(|_| PfError::InvalidFile)?;
-        Ok(Self { page_count })
+        if free_list != super::INVALID_PAGE_ID && free_list >= page_count {
+            return Err(PfError::InvalidFile);
+        }
+        Ok(Self {
+            page_count,
+            free_list,
+        })
     }
 
     pub(crate) fn write_to(&self, file: &mut File) -> Result<()> {

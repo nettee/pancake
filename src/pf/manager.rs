@@ -1,6 +1,7 @@
-use super::{validate_path, FileHeader, PfError, PfFile, PfFileState, Result};
+use super::{FileHeader, PfError, PfFile, PfFileState, Result, validate_path};
 use std::cell::RefCell;
-use std::fs::{remove_file, OpenOptions};
+use std::collections::HashMap;
+use std::fs::{OpenOptions, remove_file};
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
@@ -58,7 +59,12 @@ impl PfManager {
 
         let header = FileHeader::read_from(&file)?;
         Ok(PfFile {
-            inner: Rc::new(RefCell::new(PfFileState { file, header })),
+            inner: Rc::new(RefCell::new(PfFileState {
+                file,
+                header,
+                pin_counts: HashMap::new(),
+                live_write_guards: 0,
+            })),
         })
     }
 }

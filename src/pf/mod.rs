@@ -1,4 +1,4 @@
-use crate::common::{read_u32_le, write_u32_le, INVALID_PAGE_ID, PAGE_SIZE};
+use crate::common::{INVALID_PAGE_ID, PAGE_SIZE, read_u32_le, write_u32_le};
 use std::path::Path;
 
 const PF_MAGIC: [u8; 8] = *b"PANCAKE1";
@@ -20,6 +20,8 @@ pub enum PfError {
     FileNotFound,
     InvalidFile,
     InvalidPageId,
+    PagePinned,
+    EndOfFile,
     OutstandingWriteGuard,
     Io(std::io::Error),
 }
@@ -32,6 +34,8 @@ impl core::fmt::Display for PfError {
             Self::FileNotFound => write!(f, "file not found"),
             Self::InvalidFile => write!(f, "invalid paged file"),
             Self::InvalidPageId => write!(f, "invalid page id"),
+            Self::PagePinned => write!(f, "page is pinned"),
+            Self::EndOfFile => write!(f, "end of file"),
             Self::OutstandingWriteGuard => write!(f, "outstanding write guard"),
             Self::Io(err) => write!(f, "io error: {err}"),
         }
@@ -65,7 +69,7 @@ pub use manager::PfManager;
 pub use page::{ReadPageGuard, WritePageGuard};
 
 #[allow(unused_imports)]
-pub(crate) use file::{page_offset, read_page_bytes, write_page_bytes, zero_page, PfFileState};
+pub(crate) use file::{PfFileState, page_offset, read_page_bytes, write_page_bytes, zero_page};
 pub(crate) use header::FileHeader;
 
 fn validate_path(path: &Path) -> Result<()> {

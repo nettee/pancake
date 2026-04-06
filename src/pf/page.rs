@@ -4,10 +4,11 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ReadPageGuard {
     pub(crate) page_id: PageId,
     pub(crate) data: Vec<u8>,
+    pub(crate) inner: Rc<RefCell<PfFileState>>,
 }
 
 impl ReadPageGuard {
@@ -17,6 +18,13 @@ impl ReadPageGuard {
 
     pub fn data(&self) -> &[u8] {
         &self.data
+    }
+}
+
+impl Drop for ReadPageGuard {
+    fn drop(&mut self) {
+        let mut inner = self.inner.borrow_mut();
+        inner.unpin_read(self.page_id);
     }
 }
 
@@ -51,20 +59,30 @@ impl WritePageGuard {
 
 impl Drop for WritePageGuard {
     fn drop(&mut self) {
-        if !self.dirty {
-            return;
-        }
-
-        if let Ok(mut inner) = self.inner.try_borrow_mut() {
-            // Phase 1 uses direct file-backed writes instead of a buffer pool.
+        let mut inner = self.inner.borrow_mut();
+        let write_result = if self.dirty {
+            // Phase 2 still uses direct file-backed writes instead of a buffer pool.
             // Dropping a dirty guard is therefore the moment when its page data
             // is persisted to disk.
             if let Err(err) = write_page_bytes(&mut inner.file, self.page_id, &self.data) {
-                panic!("failed to write dirty page {}: {err}", self.page_id);
+                Err(format!(
+                    "failed to write dirty page {}: {err}",
+                    self.page_id
+                ))
+            } else if let Err(err) = inner.file.flush() {
+                Err(format!(
+                    "failed to flush dirty page {}: {err}",
+                    self.page_id
+                ))
+            } else {
+                Ok(())
             }
-            if let Err(err) = inner.file.flush() {
-                panic!("failed to flush dirty page {}: {err}", self.page_id);
-            }
+        } else {
+            Ok(())
+        };
+        inner.unpin_write(self.page_id);
+        if let Err(message) = write_result {
+            panic!("{message}");
         }
     }
 }
