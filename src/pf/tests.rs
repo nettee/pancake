@@ -130,6 +130,127 @@ fn write_page_persists_across_reopen() {
 }
 
 #[test]
+fn dirty_page_stays_buffered_until_flush_all() {
+    let mgr = PfManager::new();
+    let path = temp_path("dirty_flush");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let page_id = file.allocate_page().expect("allocate page");
+    {
+        let mut page = file.get_page_mut(page_id).expect("get mutable page");
+        page.data_mut()[0..4].copy_from_slice(&[9, 8, 7, 6]);
+    }
+
+    let cached = file.get_page(page_id).expect("read cached dirty page");
+    assert_eq!(&cached.data()[0..4], &[9, 8, 7, 6]);
+    drop(cached);
+
+    let reopened_before_flush = mgr.open_file(&path).expect("reopen before flush");
+    let before_flush = reopened_before_flush
+        .get_page(page_id)
+        .expect("read page before flush");
+    assert!(before_flush.data()[0..4].iter().all(|&byte| byte == 0));
+    drop(before_flush);
+    drop(reopened_before_flush);
+
+    file.flush_all().expect("flush all");
+    drop(file);
+
+    let reopened_after_flush = mgr.open_file(&path).expect("reopen after flush");
+    let after_flush = reopened_after_flush
+        .get_page(page_id)
+        .expect("read page after flush");
+    assert_eq!(&after_flush.data()[0..4], &[9, 8, 7, 6]);
+
+    drop(after_flush);
+    drop(reopened_after_flush);
+    cleanup(&path);
+}
+
+#[test]
+fn dropping_file_flushes_buffered_dirty_pages() {
+    let mgr = PfManager::new();
+    let path = temp_path("drop_flush");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+
+    let page_id = file.allocate_page().expect("allocate page");
+    {
+        let mut page = file.get_page_mut(page_id).expect("get mutable page");
+        page.data_mut()[0..4].copy_from_slice(&[4, 3, 2, 1]);
+    }
+
+    drop(file);
+
+    let reopened = mgr.open_file(&path).expect("reopen after drop");
+    let page = reopened.get_page(page_id).expect("read page after drop");
+    assert_eq!(&page.data()[0..4], &[4, 3, 2, 1]);
+
+    drop(page);
+    drop(reopened);
+    cleanup(&path);
+}
+
+#[test]
+fn lru_eviction_flushes_dirty_pages_and_keeps_scan_semantics() {
+    let mgr = PfManager::new();
+    let path = temp_path("lru_eviction");
+    cleanup(&path);
+
+    mgr.create_file(&path).expect("create file");
+    let file = mgr.open_file(&path).expect("open file");
+    file.set_buffer_capacity_for_tests(2);
+
+    let first = file.allocate_page().expect("allocate first");
+    let second = file.allocate_page().expect("allocate second");
+    let third = file.allocate_page().expect("allocate third");
+
+    {
+        let mut page = file.get_page_mut(first).expect("dirty first");
+        page.data_mut()[0] = 11;
+    }
+    {
+        let mut page = file.get_page_mut(second).expect("dirty second");
+        page.data_mut()[0] = 22;
+    }
+
+    let first_touch = file.get_page(first).expect("touch first");
+    assert_eq!(first_touch.data()[0], 11);
+    drop(first_touch);
+
+    let third_page = file.get_page(third).expect("load third");
+    assert_eq!(third_page.data()[0], 0);
+    drop(third_page);
+
+    assert_eq!(file.evicted_pages_for_tests(), vec![second]);
+
+    file.dispose_page(second).expect("dispose second");
+    file.flush_all().expect("flush all");
+    drop(file);
+
+    let reopened = mgr.open_file(&path).expect("reopen file");
+    let first_page = reopened.get_page(first).expect("read first");
+    let third_page = reopened.get_page(third).expect("read third");
+    assert_eq!(first_page.data()[0], 11);
+    assert_eq!(third_page.data()[0], 0);
+
+    assert_eq!(reopened.first_page_id().expect("first page"), first);
+    assert_eq!(reopened.next_page_id(first).expect("next page"), third);
+    let err = reopened.next_page_id(third).expect_err("scan end");
+    assert!(matches!(err, PfError::EndOfFile));
+
+    drop(third_page);
+    drop(first_page);
+    drop(reopened);
+    cleanup(&path);
+}
+
+#[test]
 fn forward_scan_skips_disposed_pages() {
     let mgr = PfManager::new();
     let path = temp_path("forward_scan");

@@ -1,4 +1,4 @@
-use crate::common::{INVALID_PAGE_ID, PAGE_SIZE, read_u32_le, write_u32_le};
+use crate::common::{read_u32_le, write_u32_le, INVALID_PAGE_ID, PAGE_SIZE};
 use std::path::Path;
 
 const PF_MAGIC: [u8; 8] = *b"PANCAKE1";
@@ -7,6 +7,7 @@ const PF_VERSION: u32 = 1;
 // simple and leaves room for future metadata such as free-list state.
 const PF_HEADER_SIZE: usize = PAGE_SIZE;
 const PF_PAGE_SIZE: usize = PAGE_SIZE;
+const PF_BUFFER_SIZE: usize = 40;
 const HEADER_MAGIC_OFFSET: usize = 0;
 const HEADER_VERSION_OFFSET: usize = 8;
 const HEADER_PAGE_SIZE_OFFSET: usize = 12;
@@ -69,7 +70,7 @@ pub use manager::PfManager;
 pub use page::{ReadPageGuard, WritePageGuard};
 
 #[allow(unused_imports)]
-pub(crate) use file::{PfFileState, page_offset, read_page_bytes, write_page_bytes, zero_page};
+pub(crate) use file::{page_offset, read_page_bytes, write_page_bytes, zero_page, PfFileState};
 pub(crate) use header::FileHeader;
 
 fn validate_path(path: &Path) -> Result<()> {

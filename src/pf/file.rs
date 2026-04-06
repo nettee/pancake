@@ -1,7 +1,7 @@
 use super::{FileHeader, PfError, ReadPageGuard, Result, WritePageGuard};
 use crate::common::PageId;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::rc::Rc;
@@ -29,6 +29,7 @@ impl PfFile {
             page_id
         };
 
+        inner.buffer_pool.remove(page_id);
         write_page_bytes(&mut file, page_id, &zero_page())?;
         inner.header.write_to(&mut file)?;
         file.flush()?;
@@ -46,6 +47,7 @@ impl PfFile {
         }
 
         let mut file = inner.file.try_clone()?;
+        inner.buffer_pool.remove(page_id);
         let next_free = inner.header.free_list;
         write_u32_link(&mut file, page_id, next_free)?;
         inner.header.free_list = page_id;
@@ -88,9 +90,9 @@ impl PfFile {
 
     pub fn get_page(&self, page_id: PageId) -> Result<ReadPageGuard> {
         let data = {
-            let inner = self.inner.borrow();
+            let mut inner = self.inner.borrow_mut();
             let mut file = inner.file.try_clone()?;
-            read_page_bytes(&mut file, &inner.header, page_id)?
+            inner.read_page_snapshot(&mut file, page_id)?
         };
         let mut inner = self.inner.borrow_mut();
         if !inner.can_pin_read(page_id) {
@@ -106,9 +108,9 @@ impl PfFile {
 
     pub fn get_page_mut(&self, page_id: PageId) -> Result<WritePageGuard> {
         let data = {
-            let inner = self.inner.borrow();
+            let mut inner = self.inner.borrow_mut();
             let mut file = inner.file.try_clone()?;
-            read_page_bytes(&mut file, &inner.header, page_id)?
+            inner.read_page_snapshot(&mut file, page_id)?
         };
         let mut inner = self.inner.borrow_mut();
         if !inner.can_pin_write(page_id) {
@@ -124,7 +126,7 @@ impl PfFile {
     }
 
     pub fn flush_all(&self) -> Result<()> {
-        let inner = self.inner.borrow();
+        let mut inner = self.inner.borrow_mut();
         // A live write guard may still own newer bytes than the file itself.
         // Reject flushes in that state so callers do not assume data is durable
         // before the guard has been dropped.
@@ -132,11 +134,22 @@ impl PfFile {
             return Err(PfError::OutstandingWriteGuard);
         }
 
-        let header = inner.header;
         let mut file = inner.file.try_clone()?;
-        header.write_to(&mut file)?;
+        inner.header.write_to(&mut file)?;
+        inner.flush_dirty_pages(&mut file)?;
         file.sync_all()?;
+        inner.mark_clean_after_sync();
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_buffer_capacity_for_tests(&self, capacity: usize) {
+        self.inner.borrow_mut().buffer_pool.set_capacity(capacity);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn evicted_pages_for_tests(&self) -> Vec<PageId> {
+        self.inner.borrow().buffer_pool.eviction_log.clone()
     }
 }
 
@@ -151,14 +164,144 @@ fn ensure_live_page(inner: &PfFileState, page_id: PageId) -> Result<()> {
 pub(crate) struct PfFileState {
     pub(crate) file: File,
     pub(crate) header: FileHeader,
-    pub(crate) pin_counts: std::collections::HashMap<PageId, PinState>,
+    pub(crate) pin_counts: HashMap<PageId, PinState>,
     pub(crate) live_write_guards: usize,
+    pub(crate) buffer_pool: BufferPool,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct PinState {
     pub(crate) readers: usize,
     pub(crate) writers: usize,
+}
+
+#[derive(Debug)]
+pub(crate) struct BufferPool {
+    capacity: usize,
+    tick: u64,
+    frames: HashMap<PageId, BufferFrame>,
+    #[cfg(test)]
+    pub(crate) eviction_log: Vec<PageId>,
+}
+
+#[derive(Debug)]
+struct BufferFrame {
+    data: Vec<u8>,
+    dirty: bool,
+    last_used: u64,
+}
+
+impl BufferPool {
+    pub(crate) fn new(capacity: usize) -> Self {
+        Self {
+            capacity: capacity.max(1),
+            tick: 0,
+            frames: HashMap::new(),
+            #[cfg(test)]
+            eviction_log: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_capacity(&mut self, capacity: usize) {
+        self.capacity = capacity.max(1);
+    }
+
+    fn bump_tick(&mut self) -> u64 {
+        self.tick = self.tick.saturating_add(1);
+        self.tick
+    }
+
+    fn cached_clone(&mut self, page_id: PageId) -> Option<Vec<u8>> {
+        let tick = self.bump_tick();
+        let frame = self.frames.get_mut(&page_id)?;
+        frame.last_used = tick;
+        Some(frame.data.clone())
+    }
+
+    fn insert_clean(&mut self, page_id: PageId, data: Vec<u8>) {
+        let tick = self.bump_tick();
+        self.frames.insert(
+            page_id,
+            BufferFrame {
+                data,
+                dirty: false,
+                last_used: tick,
+            },
+        );
+    }
+
+    fn store_dirty(&mut self, page_id: PageId, data: Vec<u8>) {
+        let tick = self.bump_tick();
+        self.frames.insert(
+            page_id,
+            BufferFrame {
+                data,
+                dirty: true,
+                last_used: tick,
+            },
+        );
+    }
+
+    fn remove(&mut self, page_id: PageId) {
+        self.frames.remove(&page_id);
+    }
+
+    fn dirty_pages_in_lru_order(&self) -> Vec<PageId> {
+        let mut dirty_pages: Vec<(PageId, u64)> = self
+            .frames
+            .iter()
+            .filter(|(_, frame)| frame.dirty)
+            .map(|(page_id, frame)| (*page_id, frame.last_used))
+            .collect();
+        dirty_pages.sort_by_key(|(_, last_used)| *last_used);
+        dirty_pages
+            .into_iter()
+            .map(|(page_id, _)| page_id)
+            .collect()
+    }
+
+    fn write_dirty_pages(&self, file: &mut File) -> Result<()> {
+        for page_id in self.dirty_pages_in_lru_order() {
+            if let Some(frame) = self.frames.get(&page_id) {
+                write_page_bytes(file, page_id, &frame.data)?;
+            }
+        }
+        file.flush()?;
+        Ok(())
+    }
+
+    fn mark_clean_after_sync(&mut self) {
+        for frame in self.frames.values_mut() {
+            frame.dirty = false;
+        }
+    }
+
+    fn lru_victim(&self, pin_counts: &HashMap<PageId, PinState>) -> Option<PageId> {
+        self.frames
+            .iter()
+            .filter(|(page_id, _)| {
+                !pin_counts
+                    .get(page_id)
+                    .map(|state| state.readers + state.writers > 0)
+                    .unwrap_or(false)
+            })
+            .min_by_key(|(_, frame)| frame.last_used)
+            .map(|(page_id, _)| *page_id)
+    }
+
+    fn evict(&mut self, file: &mut File, page_id: PageId) -> Result<()> {
+        if let Some(frame) = self.frames.get(&page_id) {
+            if frame.dirty {
+                write_page_bytes(file, page_id, &frame.data)?;
+                file.sync_all()?;
+            }
+        }
+        self.frames.remove(&page_id);
+        #[cfg(test)]
+        self.eviction_log.push(page_id);
+        Ok(())
+    }
 }
 
 impl PfFileState {
@@ -217,6 +360,66 @@ impl PfFileState {
         let disposed = collect_disposed_pages(&mut file, &self.header)?;
         Ok(disposed.contains(&page_id))
     }
+
+    pub(crate) fn read_page_snapshot(
+        &mut self,
+        file: &mut File,
+        page_id: PageId,
+    ) -> Result<Vec<u8>> {
+        if page_id >= self.header.page_count {
+            return Err(PfError::InvalidPageId);
+        }
+
+        if let Some(data) = self.buffer_pool.cached_clone(page_id) {
+            return Ok(data);
+        }
+
+        let data = read_page_bytes(file, &self.header, page_id)?;
+        if self.buffer_pool.frames.len() >= self.buffer_pool.capacity {
+            let victim = self
+                .buffer_pool
+                .lru_victim(&self.pin_counts)
+                .ok_or(PfError::PagePinned)?;
+            self.buffer_pool.evict(file, victim)?;
+        }
+        self.buffer_pool.insert_clean(page_id, data.clone());
+        Ok(data)
+    }
+
+    pub(crate) fn store_dirty_snapshot(&mut self, page_id: PageId, data: Vec<u8>) {
+        self.buffer_pool.store_dirty(page_id, data);
+    }
+
+    pub(crate) fn flush_dirty_pages(&mut self, file: &mut File) -> Result<()> {
+        self.buffer_pool.write_dirty_pages(file)
+    }
+
+    pub(crate) fn mark_clean_after_sync(&mut self) {
+        self.buffer_pool.mark_clean_after_sync();
+    }
+}
+
+impl Drop for PfFileState {
+    fn drop(&mut self) {
+        if self.live_write_guards > 0 {
+            return;
+        }
+
+        if self.buffer_pool.dirty_pages_in_lru_order().is_empty() {
+            return;
+        }
+
+        let header = self.header;
+        let result = (|| -> Result<()> {
+            header.write_to(&mut self.file)?;
+            self.buffer_pool.write_dirty_pages(&mut self.file)?;
+            self.file.sync_all()?;
+            self.buffer_pool.mark_clean_after_sync();
+            Ok(())
+        })();
+
+        result.unwrap_or_else(|err| panic!("failed to flush dirty PF state on drop: {err}"));
+    }
 }
 
 pub(crate) fn zero_page() -> [u8; super::PF_PAGE_SIZE] {
@@ -251,8 +454,8 @@ pub(crate) fn read_page_bytes(
         return Err(PfError::InvalidPageId);
     }
 
-    // Page reads always materialize an owned buffer in Phase 1, which keeps
-    // lifetimes simple until a real buffer pool is introduced.
+    // Page reads always materialize an owned buffer in this implementation so
+    // guards can stay short-lived without self-referential borrowing.
     let mut data = vec![0u8; super::PF_PAGE_SIZE];
     file.seek(SeekFrom::Start(page_offset(page_id)?))?;
     file.read_exact(&mut data)?;

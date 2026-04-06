@@ -163,10 +163,10 @@ created: '2026-04-05'
   - [x] 为 forward scan 编写测试并实现 `first_page_id` / `next_page_id`
   - [x] 为 `dispose_page` + LIFO 复用编写测试并实现
   - [x] 引入 page guards 并用测试固定 pin/unpin 语义
-- [ ] Phase 3: 完成 buffer/flush 行为
-  - [ ] 为 dirty flush 编写测试并实现
-  - [ ] 在小 buffer 场景下为 eviction/LRU 编写测试并实现
-  - [ ] 回归验证持久化与扫描语义
+- [x] Phase 3: 完成 buffer/flush 行为
+  - [x] 为 dirty flush 编写测试并实现
+  - [x] 在小 buffer 场景下为 eviction/LRU 编写测试并实现
+  - [x] 回归验证持久化与扫描语义
 
 ## Notes
 
@@ -175,18 +175,17 @@ created: '2026-04-05'
 
 ### Implementation
 
-- `src/pf/mod.rs` — added `PagePinned` and `EndOfFile` errors for scan and guard-conflict semantics.
-- `src/pf/manager.rs` — initializes opened PF files with in-memory pin tracking state.
-- `src/pf/header.rs` — persists and validates the on-disk free-list head.
-- `src/pf/file.rs` — implements `first_page_id` / `next_page_id`, `dispose_page`, LIFO page reuse, and same-page guard conflict checks.
-- `src/pf/page.rs` — makes read/write guards release pin state on drop and keeps dirty write-back fail-loud.
-- `src/pf/tests.rs` — adds Phase 2 coverage for forward scan, dispose/LIFO reuse, dispose-vs-pin behavior, and incompatible same-page guards.
-- Coding-time decision: in the current direct file-backed model, multiple read guards may coexist, but read/write and write/write overlap on the same page are rejected to avoid divergent owned page buffers.
-- Deviation from the long-term design: this phase still uses direct file-backed guards instead of a real buffer pool/LRU, and still keeps `PF_PAGE_SIZE` aligned with `common::PAGE_SIZE = 4096` for now.
+- `src/pf/mod.rs` — defines the Phase 3 default PF buffer capacity constant.
+- `src/pf/manager.rs` — initializes opened PF files with the in-memory buffer pool state.
+- `src/pf/file.rs` — adds minimal buffered page caching, dirty-frame tracking, LRU eviction, explicit flush-all write-back, and fail-loud drop-time close flushing.
+- `src/pf/page.rs` — changes write guards to hand dirty bytes back to the buffer pool on drop instead of writing through immediately.
+- `src/pf/tests.rs` — adds Phase 3 coverage for dirty flush behavior, dirty-page persistence on file drop, and small-buffer LRU eviction with scan regression.
+- Coding-time decision: Phase 3 keeps the existing owned-buffer page guards and updates the shared buffer pool only when a write guard drops, which avoids self-referential borrowing while still enabling dirty caching.
+- Deviation from the longer-term design: the buffer pool remains a minimal PF-internal implementation rather than a separate reusable `buffer` module, and still keeps `PF_PAGE_SIZE` aligned with `common::PAGE_SIZE = 4096`.
 
 ### Verification
 
-- 新增 4 个 Phase 2 PF 单元测试；当前 PF 单元测试共 12 个，`cargo test` 结果为 12 passed, 0 failed。
-- 执行 `cargo test`，结果通过（12 passed, 0 failed）。
-- 手动验证了 forward scan 会跳过 disposed pages，且重新分配优先复用最近释放的页号。
-- 当前已知限制：buffer pool/LRU、dirty eviction，以及更完整的 flush/eviction 语义仍留待 Phase 3。
+- 新增 3 个 Phase 3 PF 单元测试；当前 PF 单元测试共 15 个，`cargo test` 结果为 15 passed, 0 failed。
+- 验证 dirty page 在 `flush_all` 前仅停留在缓冲区，执行 `flush_all` 或关闭文件后会持久化到磁盘。
+- 在小 buffer 场景下验证了 LRU eviction 会写回脏页，且前向扫描仍会跳过 disposed pages。
+- 当前已知限制：尚未拆分为独立 `buffer` 模块，也未实现更完整的 replacement metrics / scratch pages 语义。

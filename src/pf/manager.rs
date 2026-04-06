@@ -1,7 +1,7 @@
-use super::{FileHeader, PfError, PfFile, PfFileState, Result, validate_path};
+use super::{validate_path, FileHeader, PfError, PfFile, PfFileState, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::{OpenOptions, remove_file};
+use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
@@ -64,6 +64,7 @@ impl PfManager {
                 header,
                 pin_counts: HashMap::new(),
                 live_write_guards: 0,
+                buffer_pool: super::file::BufferPool::new(super::PF_BUFFER_SIZE),
             })),
         })
     }

@@ -1,7 +1,6 @@
-use super::{write_page_bytes, PfFileState};
+use super::PfFileState;
 use crate::common::PageId;
 use std::cell::RefCell;
-use std::io::Write;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -31,8 +30,8 @@ impl Drop for ReadPageGuard {
 #[derive(Debug)]
 /// A write guard owns a temporary page buffer and persists it on drop.
 ///
-/// This is the Phase 1 RAII boundary: callers mutate page bytes through the
-/// guard, and releasing the guard completes the write-back step.
+/// This is the RAII boundary: callers mutate page bytes through the guard,
+/// and releasing the guard hands dirty bytes back to the buffer pool.
 pub struct WritePageGuard {
     pub(crate) page_id: PageId,
     pub(crate) data: Vec<u8>,
@@ -60,29 +59,11 @@ impl WritePageGuard {
 impl Drop for WritePageGuard {
     fn drop(&mut self) {
         let mut inner = self.inner.borrow_mut();
-        let write_result = if self.dirty {
-            // Phase 2 still uses direct file-backed writes instead of a buffer pool.
-            // Dropping a dirty guard is therefore the moment when its page data
-            // is persisted to disk.
-            if let Err(err) = write_page_bytes(&mut inner.file, self.page_id, &self.data) {
-                Err(format!(
-                    "failed to write dirty page {}: {err}",
-                    self.page_id
-                ))
-            } else if let Err(err) = inner.file.flush() {
-                Err(format!(
-                    "failed to flush dirty page {}: {err}",
-                    self.page_id
-                ))
-            } else {
-                Ok(())
-            }
-        } else {
-            Ok(())
-        };
-        inner.unpin_write(self.page_id);
-        if let Err(message) = write_result {
-            panic!("{message}");
+        if self.dirty {
+            // Dirty bytes stay in the buffer pool until an explicit flush or
+            // an LRU eviction writes them back.
+            inner.store_dirty_snapshot(self.page_id, std::mem::take(&mut self.data));
         }
+        inner.unpin_write(self.page_id);
     }
 }
