@@ -180,6 +180,7 @@ created: '2026-04-05'
 - `src/pf/file.rs` — adds minimal buffered page caching, dirty-frame tracking, LRU eviction, explicit flush-all write-back, and fail-loud drop-time close flushing.
 - `src/pf/page.rs` — changes write guards to hand dirty bytes back to the buffer pool on drop instead of writing through immediately.
 - `src/pf/tests.rs` — adds Phase 3 coverage for dirty flush behavior, dirty-page persistence on file drop, and small-buffer LRU eviction with scan regression.
+- Coding-time discovery: after moving dirty writes from `WritePageGuard::drop` into the buffer pool, PF durability semantics had to be made RAII-complete again at the file level. A write guard now owns private dirty bytes until drop, `flush_all` must reject live write guards, and `PfFile` close/drop must take responsibility for buffered dirty pages rather than silently losing them.
 - Coding-time decision: Phase 3 keeps the existing owned-buffer page guards and updates the shared buffer pool only when a write guard drops, which avoids self-referential borrowing while still enabling dirty caching.
 - Deviation from the longer-term design: the buffer pool remains a minimal PF-internal implementation rather than a separate reusable `buffer` module, and still keeps `PF_PAGE_SIZE` aligned with `common::PAGE_SIZE = 4096`.
 
@@ -189,3 +190,11 @@ created: '2026-04-05'
 - 验证 dirty page 在 `flush_all` 前仅停留在缓冲区，执行 `flush_all` 或关闭文件后会持久化到磁盘。
 - 在小 buffer 场景下验证了 LRU eviction 会写回脏页，且前向扫描仍会跳过 disposed pages。
 - 当前已知限制：尚未拆分为独立 `buffer` 模块，也未实现更完整的 replacement metrics / scratch pages 语义。
+
+### RAII Follow-ups
+
+- `PfFile` 最好补一个显式 `close(self) -> Result<()>` 路径，把可失败的 durable flush 从 `Drop` 中移到显式 API；`Drop` 更适合作为 fail-loud fallback，而不是唯一正确性路径。
+- `allocate_page` / `dispose_page` 当前只做 `flush()`，而 `flush_all` 会做 `sync_all()`；后续需要统一元数据 durability contract，明确这些操作是“仅进程内可见直到 flush/close”还是“操作返回即 crash-durable”。
+- `PfManager::destroy_file` 目前没有跟踪 live open handles；后续可增加 open-file registry，避免在仍有活跃 `PfFile` / guards 时销毁文件。
+- 当前 page guards 仍是 owned snapshot + drop 回写模型，而不是真正借用 frame 的 guard；后续若继续 Rust 化，可考虑更明确地把“pin 的是 frame 生命周期”而不是“pin 计数 + 独立副本”建模出来。
+- disposed/free-list 元数据当前仍会在部分路径重复扫描磁盘；后续可考虑在 `PfFileState` 中维护已验证的内存视图，减少手动状态同步与重复 I/O。
